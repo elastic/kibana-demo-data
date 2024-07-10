@@ -1,11 +1,81 @@
-#!/bin/bash
+#!/bin/sh
 # A script to install all known demo data hidden in Kibana
 
 username="elastic"
 password="changeme"
 url="http://localhost:9200"  # replace with your Elasticsearch URL if different
 kibana_url="http://localhost:5601"  # replace with your Kibana URL if different
-echo "🙏🙏🙏  Kibana demo data god ingestion script start 🙏🙏🙏"
+echo "🙏🙏🙏 Kibana demo data god ingestion script start 🙏🙏🙏"
+
+echo "Waiting for Elasticsearch to be online..."
+while true; do
+    # Check if Elasticsearch is online
+    response=$(curl -s -o /dev/null -w "%{http_code}" -u "${username}:${password}" ${url})
+
+    if [ "$response" -eq 200 ]; then
+        echo "Elasticsearch is online."
+        break
+    fi
+    printf "."
+    sleep 5
+done
+
+echo "Installing remote sample data to Elasticsearch"
+
+process_remote() {
+  remote_json_url=$1
+
+  # Extract the base filename from the URL
+  base_filename=$(basename "$remote_json_url" .ndjson)
+
+  echo "Processing ${base_filename}"
+
+  bulk_data_file=$(mktemp)
+  counter=0
+  curl -s "$remote_json_url" | while IFS= read -r line; do
+    processed_line=$(echo "$line" | sed "s/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T/$(date +%Y-%m-%dT)/g")
+
+    # Append the action and metadata to the bulk_data string
+    echo "{ \"index\" : { \"_index\" : \"${base_filename}\" } }" >> "$bulk_data_file"
+
+    # Append the document to the bulk_data string
+    echo "${processed_line}" >> "$bulk_data_file"
+
+    counter=$((counter+1))
+
+    if [ $counter -eq 250 ]; then
+      # Send the bulk_data string to Elasticsearch using the _bulk API
+      curl -s -u "${username}:${password}" -s -X POST "${url}/_bulk" -H 'Content-Type: application/json' --data-binary "@$bulk_data_file" > /dev/null
+
+      # Reset the counter and start a new batch
+      counter=0
+      rm "$bulk_data_file"
+      bulk_data_file=$(mktemp)
+    fi
+  done
+
+  # Send any remaining data in the last batch
+  if [ $counter -gt 0 ]; then
+    curl -s -u "${username}:${password}" -s -X POST "${url}/_bulk" -H 'Content-Type: application/json' --data-binary "@$bulk_data_file" > /dev/null
+  fi
+  # Clean up the temporary file
+  if [ -f "$bulk_data_file" ]; then
+    rm "$bulk_data_file"
+  fi
+  echo "Processing ${base_filename} completed"
+}
+
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-apache_error.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-aws_s3.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-custom_multiplex.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-k8s_container.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-nginx_error.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-nqinx.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-system_error.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/custom-metrics-without-timestamp.ndjson"
+
+echo "Installing remote sample data to Elasticsearch finished"
+
 
 echo "Waiting for Kibana to be online..."
 while true; do
@@ -37,20 +107,15 @@ echo "Install flights"
 curl -u ${username}:${password} -X POST "${kibana_url}${dev_prefix}/api/sample_data/flights" -s -o /dev/null -H 'kbn-xsrf: true' -H 'Content-Type: application/json' 2>&1
 echo "Sample data installed finished!"
 
-process_remote() {
+
+
+process_remote_kibana() {
   remote_json_url=$1
 
   # Extract the base filename from the URL
   base_filename=$(basename "$remote_json_url" .ndjson)
 
-  echo "Processing ${base_filename}"
-
-  # Fetch the JSON file and pipe it into the while loop
-  curl -s "$remote_json_url" | while IFS= read -r line; do
-    processed_line=$(echo "$line" | sed "s/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T/$(date +%Y-%m-%dT)/g")
-    curl -s -u "${username}:${password}" -s -X POST "${url}/${base_filename}/_doc" -H 'Content-Type: application/json' -d"$processed_line" > /dev/null
-  done
-   echo "Processing ${base_filename} completed"
+  echo "Provide ${base_filename} data views"
 
   curl -s -u "${username}:${password}" "${kibana_url}${dev_prefix}/api/data_views/data_view" -H 'kbn-xsrf: true' -H 'elastic-api-version: 2023-10-31' -H 'Content-Type: application/json' -d '
   {
@@ -64,14 +129,15 @@ process_remote() {
 
 echo "Installing remote sample data"
 
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/custom-metrics-without-timestamp.ndjson"
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/log-apache_error.ndjson"
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/log-aws_s3.ndjson"
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/log-custom_multiplex.ndjson"
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/log-k8s_container.ndjson"
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/log-nginx_error.ndjson"
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/log-nqinx.ndjson"
-process_remote "https://raw.githubusercontent.com/kertal/kibana-a-la-carte-home/main/data/log-system_error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-apache_error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-aws_s3.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-custom_multiplex.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-k8s_container.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-nginx_error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-nqinx.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-system_error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/custom-metrics-without-timestamp.ndjson"
+
 
 echo "Installing remote sample data finished"
 
@@ -96,7 +162,7 @@ curl -s -u "${username}:${password}" "${kibana_url}${dev_prefix}/api/data_views/
        "name": "log*",
        "timeFieldName": "@timestamp"
     }
-  }'
+  }' > /dev/null
 
 echo "🙏🙏🙏 Demo data ingestion script stop 🙏🙏🙏"
 echo "🙏🙏🙏 The demo god is with you!! 🙏🙏🙏"
