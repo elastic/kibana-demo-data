@@ -32,7 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Copy all.sh to index.html
-        run: cp all.sh index.sh  # This command copies all.sh to index.sh
+        run: cp all.sh index.html  # This command copies all.sh to index.sh
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
