@@ -5,7 +5,6 @@ USERNAME="elastic"
 PASSWORD="changeme"
 url="http://localhost:9200"  # replace with your Elasticsearch URL if different
 kibana_url="http://localhost:5601"  # replace with your Kibana URL if different
-echo "🙏🙏🙏 Kibana demo data god ingestion script start 🙏🙏🙏"
 
 echo "Waiting for Elasticsearch to be online..."
 while true; do
