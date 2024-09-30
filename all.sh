@@ -23,6 +23,29 @@ search_string_in_args() {
     return 1
 }
 
+show_help() {
+  echo "Usage: $0 [options] [scripts]"
+  echo
+  echo "Options:"
+  echo "  --help    Show this help message and exit"
+  echo
+  echo "Scripts:"
+  echo "  custom    Install custom sample data (apache, nginx, kubernetes, etc)"
+  echo "  o11y      Install o11y sample data"
+  echo "  sample    Install Kibana sample data"
+  echo "  security  Install security sample data"
+  echo "  makelogs  Install makelogs sample data"
+  echo
+  echo "If no scripts are specified, all scripts will be executed."
+}
+
+# Show available scripts when --help is given
+# Check for --help option
+if [ "$1" = "--help" ]; then
+    show_help
+    exit 0
+fi
+
 # available scripts
 scripts="custom o11y sample security makelogs"
 
