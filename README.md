@@ -32,7 +32,7 @@ The script installs several demo data sets, each with an associated variable nam
 If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, or `makelogs`):
 
 ```bash
-curl -sSL https://elastic.github.io/kibana-demo-data | sh -s [data_set]
+curl -sSL https://elastic.github.io/kibana-demo-data | sh -s <data_set>
 ```
 
 For example, to install **Kibana Sample Data** and **Custom Sample Data** together, run:
