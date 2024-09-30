@@ -84,7 +84,7 @@ while true; do
         break
     fi
     # Attempt to get the dev prefix of the instance
-    if [[ -z "$dev_prefix" ]]; then
+    if [ -z "$dev_prefix" ]; then
         response=$(curl -v ${kibana_url} 2>&1)
         if echo "$response" | grep -q "HTTP/1.1 302 Found"; then
           dev_prefix=$(echo "$response" | grep -i "location:" | cut -d':' -f2- | tr -d '[:space:]')
