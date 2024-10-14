@@ -1,0 +1,10 @@
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "log.level": { "type": "keyword" },
+      "message": { "type": "text" },
+      "custom.field": { "type": "keyword" }
+    }
+  }
+}

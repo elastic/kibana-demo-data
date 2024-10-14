@@ -1,0 +1,12 @@
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "event.time": { "type": "date" },
+      "bucket.name": { "type": "keyword" },
+      "requester.ip": { "type": "ip" },
+      "http.response.status_code": { "type": "integer" },
+      "bytes.transferred": { "type": "long" }
+    }
+  }
+}

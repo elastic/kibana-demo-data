@@ -1,0 +1,11 @@
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "log.level": { "type": "keyword" },
+      "message": { "type": "text" },
+      "source.ip": { "type": "ip" },
+      "host.name": { "type": "keyword" }
+    }
+  }
+}

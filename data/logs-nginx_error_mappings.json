@@ -1,0 +1,11 @@
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "log.level": { "type": "keyword" },
+      "message": { "type": "text" },
+      "nginx.source.ip": { "type": "ip" },
+      "nginx.host.name": { "type": "keyword" }
+    }
+  }
+}

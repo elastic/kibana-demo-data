@@ -1,0 +1,10 @@
+{
+  "mappings": {
+    "properties": {
+      "metric.name": { "type": "keyword" },
+      "metric.value": { "type": "double" },
+      "category": { "type": "keyword" },
+      "host.name": { "type": "keyword" }
+    }
+  }
+}

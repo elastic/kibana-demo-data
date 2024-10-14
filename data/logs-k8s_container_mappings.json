@@ -1,0 +1,11 @@
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "k8s.namespace": { "type": "keyword" },
+      "k8s.pod.name": { "type": "keyword" },
+      "k8s.container.id": { "type": "keyword" },
+      "log.message": { "type": "text" }
+    }
+  }
+}
