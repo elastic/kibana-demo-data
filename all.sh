@@ -33,8 +33,10 @@ show_help() {
   echo "  custom    Install custom sample data (apache, nginx, kubernetes, etc)"
   echo "  o11y      Install o11y sample data"
   echo "  sample    Install Kibana sample data"
+  echo "  searchkit  Install searchkit sample data"
   echo "  security  Install security sample data"
   echo "  makelogs  Install makelogs sample data"
+  echo "  search    Data useful for testing search"
   echo
   echo "If no scripts are specified, all scripts will be executed."
 }
@@ -47,7 +49,7 @@ if [ "$1" = "--help" ]; then
 fi
 
 # available scripts
-scripts="custom o11y sample security makelogs"
+scripts="custom o11y sample searchkit security makelogs"
 
 if [ $# -eq 0 ]; then
     # execute all scripts
