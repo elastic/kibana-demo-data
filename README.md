@@ -26,6 +26,8 @@ The script installs several demo data sets, each with an associated variable nam
 - **Basic Security Sample Data** (`security`)
 - **Observability (O11y) Sample Data** (`o11y`)
 - **Makelogs Sample Data** (`makelogs`)
+- **Searchkit Data** (`searchkit`)
+
 
 ## Installing Specific Data Sets
 
