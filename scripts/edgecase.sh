@@ -1,9 +1,12 @@
 #!/bin/bash
-# A script to install edge case data for Kibana testing
+# A script to install edge case data for Kibana testing with 50,000 fields and 100 records
 
 username="elastic"
 password="changeme"
 elasticsearch_url="http://localhost:9200"  # replace with your Elasticsearch URL if different
+index_name="testhuge"
+num_fields=50000
+num_records=100
 
 echo "Waiting for Elasticsearch to be online..."
 while true; do
@@ -18,67 +21,219 @@ while true; do
     sleep 5
 done
 
-process_fixture() {
-  local FIXTURE_PATH=$1
-  local MAPPING_FILE_PATH="$FIXTURE_PATH/mappings.json"
-  local DATA_FILE_PATH="$FIXTURE_PATH/data.json.gz"
-
-  echo "$FIXTURE_PATH - process mappings"
-
-  # Load and modify the JSON file
-  if ! MODIFIED_JSON=$(jq '{
-    settings: .value.settings,
-    mappings: .value.mappings
-  }' "$MAPPING_FILE_PATH"); then
-    echo "Failed to modify JSON file."
-    exit 1
-  fi
-
-  # get the value.index, assign it to $FIXTURE_NAME
-  FIXTURE_NAME=$(jq -r '.value.index' "$MAPPING_FILE_PATH")
-
-  # Delete existing index if it exists (optional cleanup)
-  curl -s -u "${username}:${password}" -X DELETE "${elasticsearch_url}/${FIXTURE_NAME}" -H 'Content-Type: application/json' > /dev/null 2>&1
-
-  # Create the index with mappings and settings
-  curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${FIXTURE_NAME}" -H 'Content-Type: application/json' -d "$MODIFIED_JSON" > /dev/null 2>&1
-
-  echo "$FIXTURE_PATH - process data"
-  gunzip -c "$DATA_FILE_PATH" | jq -c --slurp '.[]' | while IFS= read -r block; do
-    # Check if the block is non-empty
-    if [[ -n "$block" ]]; then
-      # Extract the id from the payload
-      id=$(echo "$block" | jq -r '.value.id')
-
-      type=$(echo "$block" | jq -r '.type')
-
-      # Remove the outer 'type' and 'value' fields, keeping only the 'source'
-      source=$(echo "$block" | jq -c '.value.source')
-
-      # Post the modified payload to Elasticsearch
-      if [[ "$type" == "doc" ]]; then
-        curl -s -u "${username}:${password}" -X POST "${elasticsearch_url}/${FIXTURE_NAME}/_doc/$id" -H 'Content-Type: application/json' -d "$source" > /dev/null 2>&1
-      fi
-    fi
-  done
-
-  echo "$FIXTURE_PATH - done"
+# Function to generate mapping with 50,000 fields
+generate_mapping() {
+    local num_fields=$1
+    
+    echo "Generating mapping with $num_fields fields..."
+    
+    # Start the mapping JSON
+    local mapping='{
+        "settings": {
+            "index": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0,
+                "mapping": {
+                    "total_fields": {
+                        "limit": 55000
+                    }
+                }
+            }
+        },
+        "mappings": {
+            "properties": {
+                "@timestamp": {"type": "date"},
+                "message": {"type": "text"},
+                "level": {"type": "keyword"},'
+    
+    # Field types to cycle through
+    local field_types=("keyword" "text" "long" "double" "boolean" "date" "ip")
+    local type_index=0
+    
+    # Generate regular fields
+    for ((i=1; i<=num_fields-3; i++)); do
+        local field_name
+        field_name=$(printf "field_%06d" $i)
+        local field_type=${field_types[$type_index]}
+        
+        mapping+='"'${field_name}'": {"type": "'${field_type}'"},'
+        
+        # Cycle through field types
+        type_index=$(((type_index + 1) % ${#field_types[@]}))
+        
+        # Add some nested objects every 1000 fields for variety
+        if [ $((i % 1000)) -eq 0 ]; then
+            local nested_name="nested_object_$((i/1000))"
+            mapping+='"'${nested_name}'": {
+                "type": "nested",
+                "properties": {
+                    "nested_field_001": {"type": "keyword"},
+                    "nested_field_002": {"type": "text"},
+                    "nested_field_003": {"type": "long"}
+                }
+            },'
+        fi
+        
+        # Progress indicator
+        if [ $((i % 5000)) -eq 0 ]; then
+            echo "Generated $i fields..."
+        fi
+    done
+    
+    # Add geo_point and final nested object
+    mapping+='"geo_location": {"type": "geo_point"},
+                "final_nested": {
+                    "type": "nested",
+                    "properties": {
+                        "final_field_001": {"type": "keyword"},
+                        "final_field_002": {"type": "text"}
+                    }
+                }'
+    
+    # Close the mapping JSON
+    mapping+='}
+        }
+    }'
+    
+    echo "$mapping"
 }
 
-# Download the fixture data from the repository if it doesn't exist locally
-FIXTURE_DIR="test/functional/fixtures/es_archiver/huge_fields"
-if [ ! -d "$FIXTURE_DIR" ]; then
-  echo "Creating fixture directory and downloading data..."
-  mkdir -p "$FIXTURE_DIR"
-  
-  # Download mappings.json
-  curl -s "https://elastic.github.io/kibana-demo-data/$FIXTURE_DIR/mappings.json" -o "$FIXTURE_DIR/mappings.json"
-  
-  # Download data.json.gz
-  curl -s "https://elastic.github.io/kibana-demo-data/$FIXTURE_DIR/data.json.gz" -o "$FIXTURE_DIR/data.json.gz"
+# Function to generate a single document with edge case data
+generate_document() {
+    local doc_id=$1
+    local num_fields=$2
+    local doc_type=$3  # 1=normal, 2=nulls/empty, 3=extreme
+    
+    # Start the document
+    local doc
+    doc='{"@timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")'",
+               "message": "Generated edge case test document '${doc_id}'",
+               "level": "'
+    
+    case $doc_type in
+        1) doc+='info",' ;;
+        2) doc+='warn",' ;;
+        3) doc+='error",' ;;
+    esac
+    
+    # Field types to cycle through for data generation
+    local field_types=("keyword" "text" "long" "double" "boolean" "date" "ip")
+    local type_index=0
+    
+    # Generate field data based on document type
+    for ((i=1; i<=num_fields-3; i++)); do
+        local field_name
+        field_name=$(printf "field_%06d" $i)
+        local field_type=${field_types[$type_index]}
+        
+        doc+='"'${field_name}'": '
+        
+        case $doc_type in
+            1) # Normal values
+                case $field_type in
+                    "keyword") doc+='"value_'${i}'"' ;;
+                    "text") doc+='"This is text content for field '${i}'"' ;;
+                    "long") doc+=$((i * 100)) ;;
+                    "double") doc+=$((i * 100)).$((i % 100)) ;;
+                    "boolean") doc+=$([[ $((i % 2)) -eq 0 ]] && echo "true" || echo "false") ;;
+                    "date") doc+='"2024-01-01T12:'$(printf "%02d" $((i % 60)))':00.000Z"' ;;
+                    "ip") doc+='"192.168.'$((i % 255))'.'$((i % 255))'"' ;;
+                esac
+                ;;
+            2) # Null and empty values
+                case $field_type in
+                    "keyword") doc+=$([[ $((i % 3)) -eq 0 ]] && echo "null" || echo '""') ;;
+                    "text") doc+=$([[ $((i % 3)) -eq 0 ]] && echo "null" || echo '""') ;;
+                    "long") doc+=$([[ $((i % 3)) -eq 0 ]] && echo "null" || echo "0") ;;
+                    "double") doc+=$([[ $((i % 3)) -eq 0 ]] && echo "null" || echo "0.0") ;;
+                    "boolean") doc+=$([[ $((i % 3)) -eq 0 ]] && echo "null" || echo "false") ;;
+                    "date") doc+=$([[ $((i % 3)) -eq 0 ]] && echo "null" || echo '"1970-01-01T00:00:00.000Z"') ;;
+                    "ip") doc+=$([[ $((i % 3)) -eq 0 ]] && echo "null" || echo '"0.0.0.0"') ;;
+                esac
+                ;;
+            3) # Extreme values
+                case $field_type in
+                    "keyword") doc+='"very_long_keyword_value_that_might_cause_issues_field_'${i}'_with_unicode_你好世界_and_special_chars_!@#$%"' ;;
+                    "text") doc+='"Extremely long text field '${i}' with lots of content and unicode characters: 🌍 🚀 ñáéíóú and JSON escapes: {\"test\": true}"' ;;
+                    "long") doc+=$([[ $((i % 2)) -eq 0 ]] && echo "9223372036854775807" || echo "-9223372036854775808") ;;
+                    "double") doc+=$([[ $((i % 2)) -eq 0 ]] && echo "1.7976931348623157E308" || echo "-1.7976931348623157E308") ;;
+                    "boolean") doc+=true ;;
+                    "date") doc+=$([[ $((i % 2)) -eq 0 ]] && echo '"2024-12-31T23:59:59.999Z"' || echo '"1970-01-01T00:00:00.000Z"') ;;
+                    "ip") doc+='"255.255.255.255"' ;;
+                esac
+                ;;
+        esac
+        
+        doc+=','
+        type_index=$(((type_index + 1) % ${#field_types[@]}))
+        
+        # Add nested objects every 1000 fields
+        if [ $((i % 1000)) -eq 0 ]; then
+            local nested_name="nested_object_$((i/1000))"
+            doc+='"'${nested_name}'": {'
+            case $doc_type in
+                1) doc+='"nested_field_001": "nested_value_'${i}'", "nested_field_002": "Nested text '${i}'", "nested_field_003": '$((i * 10)) ;;
+                2) doc+='"nested_field_001": null, "nested_field_002": "", "nested_field_003": 0' ;;
+                3) doc+='"nested_field_001": "NESTED_MAX_'${i}'", "nested_field_002": "Extreme nested content", "nested_field_003": 999999999' ;;
+            esac
+            doc+='},'
+        fi
+    done
+    
+    # Add final geo_location and nested object
+    case $doc_type in
+        1) doc+='"geo_location": {"lat": 40.7128, "lon": -74.0060},' ;;
+        2) doc+='"geo_location": {"lat": 0.0, "lon": 0.0},' ;;
+        3) doc+='"geo_location": {"lat": 90.0, "lon": 180.0},' ;;
+    esac
+    
+    doc+='"final_nested": {'
+    case $doc_type in
+        1) doc+='"final_field_001": "final_value", "final_field_002": "Final text content"' ;;
+        2) doc+='"final_field_001": null, "final_field_002": ""' ;;
+        3) doc+='"final_field_001": "FINAL_EXTREME_VALUE", "final_field_002": "Final extreme content with unicode 🎯"' ;;
+    esac
+    doc+='}'
+    
+    doc+='}'
+    echo "$doc"
+}
+
+# Delete existing index if it exists
+echo "Cleaning up existing index..."
+curl -s -u "${username}:${password}" -X DELETE "${elasticsearch_url}/${index_name}" -H 'Content-Type: application/json' > /dev/null 2>&1
+
+# Generate and create mapping
+echo "Creating index with dynamic mapping..."
+mapping_json=$(generate_mapping $num_fields)
+if ! curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${index_name}" -H 'Content-Type: application/json' -d "$mapping_json" > /dev/null 2>&1; then
+    echo "Failed to create index mapping."
+    exit 1
 fi
 
-# Process the fixture
-process_fixture "$FIXTURE_DIR"
+echo "Index created successfully with $num_fields fields."
+
+# Generate and insert documents
+echo "Generating and inserting $num_records documents..."
+for ((i=1; i<=num_records; i++)); do
+    # Determine document type based on ID for variety
+    doc_type=1
+    if [ $((i % 3)) -eq 2 ]; then
+        doc_type=2  # null/empty values
+    elif [ $((i % 3)) -eq 0 ]; then
+        doc_type=3  # extreme values
+    fi
+    
+    # Generate document
+    doc_json=$(generate_document "$i" $num_fields $doc_type)
+    
+    # Insert document
+    curl -s -u "${username}:${password}" -X POST "${elasticsearch_url}/${index_name}/_doc/$i" -H 'Content-Type: application/json' -d "$doc_json" > /dev/null 2>&1
+    
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "Inserted $i/$num_records documents..."
+    fi
+done
 
 echo "Edge case data installation complete!"
+echo "Created index '$index_name' with $num_fields fields and $num_records documents."
