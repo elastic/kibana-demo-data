@@ -37,6 +37,7 @@ show_help() {
   echo "  security  Install security sample data"
   echo "  makelogs  Install makelogs sample data"
   echo "  search    Data useful for testing search"
+  echo "  edgecase  Install edge case data for testing with many fields"
   echo
   echo "If no scripts are specified, all scripts will be executed."
 }
@@ -49,7 +50,7 @@ if [ "$1" = "--help" ]; then
 fi
 
 # available scripts
-scripts="custom o11y sample searchkit security makelogs"
+scripts="custom o11y sample searchkit security makelogs edgecase"
 
 if [ $# -eq 0 ]; then
     # execute all scripts
