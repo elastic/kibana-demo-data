@@ -26,19 +26,16 @@ process_fixture() {
   echo "$FIXTURE_PATH - process mappings"
 
   # Load and modify the JSON file
-  MODIFIED_JSON=$(jq '{
+  if ! MODIFIED_JSON=$(jq '{
     settings: .value.settings,
     mappings: .value.mappings
-  }' "$MAPPING_FILE_PATH")
-
-  # get the value.index, assign it to $FIXTURE_NAME
-  FIXTURE_NAME=$(jq -r '.value.index' "$MAPPING_FILE_PATH")
-
-  # Check if the modification was successful
-  if [[ $? -ne 0 ]]; then
+  }' "$MAPPING_FILE_PATH"); then
     echo "Failed to modify JSON file."
     exit 1
   fi
+
+  # get the value.index, assign it to $FIXTURE_NAME
+  FIXTURE_NAME=$(jq -r '.value.index' "$MAPPING_FILE_PATH")
 
   # Delete existing index if it exists (optional cleanup)
   curl -s -u "${username}:${password}" -X DELETE "${elasticsearch_url}/${FIXTURE_NAME}" -H 'Content-Type: application/json' > /dev/null 2>&1
