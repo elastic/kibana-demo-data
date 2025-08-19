@@ -27,7 +27,7 @@ The script installs several demo data sets, each with an associated variable nam
 - **Observability (O11y) Sample Data** (`o11y`)
 - **Makelogs Sample Data** (`makelogs`)
 - **Searchkit Data** (`searchkit`)
-- **Edge Case Data** with 50,000 dynamically generated fields and 100 test documents for testing edge cases (`edgecase`)
+- **Edge Case Data** with 50,000 dynamically generated fields across 5 indices (10,000 fields each) and 250 test documents for testing massive field scenarios (`edgecase`)
 
 
 ## Installing Specific Data Sets
@@ -44,7 +44,7 @@ For example, to install **Kibana Sample Data** and **Custom Sample Data** togeth
 curl -sSL  https://elastic.github.io/kibana-demo-data | sh -s sample custom
 ```
 
-To install **Edge Case Data** with 50,000 dynamically generated fields and 100 test documents:
+To install **Edge Case Data** with 50,000 dynamically generated fields across 5 indices and 250 test documents:
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s edgecase

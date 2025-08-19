@@ -1,12 +1,16 @@
 #!/bin/bash
-# A script to install edge case data for Kibana testing with 50,000 fields and 100 records
+# A script to install edge case data for Kibana testing with configurable fields across multiple indices
 
 username="elastic"
 password="changeme"
 elasticsearch_url="http://localhost:9200"  # replace with your Elasticsearch URL if different
-index_name="testhuge"
-num_fields=10000
-num_records=100
+index_base_name="testhuge"
+total_fields=50000          # Total number of fields to create across all indices
+fields_per_index=10000      # Number of fields per index (max recommended: 10,000)
+records_per_index=50        # Number of records per index
+
+# Calculate number of indices needed
+num_indices=$((total_fields / fields_per_index))
 
 echo "Waiting for Elasticsearch to be online..."
 while true; do
@@ -21,7 +25,7 @@ while true; do
     sleep 5
 done
 
-# Function to generate mapping with 50,000 fields
+# Function to generate mapping with specified number of fields
 generate_mapping() {
     local num_fields=$1
     
@@ -33,7 +37,7 @@ generate_mapping() {
                 "number_of_replicas": 0,
                 "mapping": {
                     "total_fields": {
-                        "limit": 55000
+                        "limit": '$((num_fields + 1000))'
                     }
                 }
             }
@@ -192,41 +196,56 @@ generate_document() {
     echo "$doc"
 }
 
-# Delete existing index if it exists
-echo "Cleaning up existing index..."
-curl -s -u "${username}:${password}" -X DELETE "${elasticsearch_url}/${index_name}" -H 'Content-Type: application/json' > /dev/null 2>&1
+# Delete existing indices if they exist
+echo "Cleaning up existing indices..."
+for ((idx=1; idx<=num_indices; idx++)); do
+    current_index="${index_base_name}_${idx}"
+    curl -s -u "${username}:${password}" -X DELETE "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' > /dev/null 2>&1
+done
 
-# Generate and create mapping
-echo "Creating index with dynamic mapping..."
-mapping_json=$(generate_mapping $num_fields)
-if ! curl  -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${index_name}" -H 'Content-Type: application/json' -d "$mapping_json"; then
-    echo "Failed to create index mapping."
-    exit 1
-fi
+echo "Creating $num_indices indices with $fields_per_index fields each (total: $total_fields fields)..."
 
-echo "Index created successfully with $num_fields fields."
-
-# Generate and insert documents
-echo "Generating and inserting $num_records documents..."
-for ((i=1; i<=num_records; i++)); do
-    # Determine document type based on ID for variety
-    doc_type=1
-    if [ $((i % 3)) -eq 2 ]; then
-        doc_type=2  # null/empty values
-    elif [ $((i % 3)) -eq 0 ]; then
-        doc_type=3  # extreme values
+# Create each index with mapping and documents
+for ((idx=1; idx<=num_indices; idx++)); do
+    current_index="${index_base_name}_${idx}"
+    echo "Processing index $idx/$num_indices: $current_index"
+    
+    # Generate and create mapping
+    echo "  Creating mapping with $fields_per_index fields..."
+    mapping_json=$(generate_mapping $fields_per_index)
+    if ! curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' -d "$mapping_json" > /dev/null 2>&1; then
+        echo "  Failed to create index mapping for $current_index."
+        exit 1
     fi
     
-    # Generate document
-    doc_json=$(generate_document "$i" $num_fields $doc_type)
+    echo "  Index $current_index created successfully."
     
-    # Insert document
-    curl -s -u "${username}:${password}" -X POST "${elasticsearch_url}/${index_name}/_doc/$i" -H 'Content-Type: application/json' -d "$doc_json" > /dev/null 2>&1
+    # Generate and insert documents for this index
+    echo "  Generating and inserting $records_per_index documents..."
+    for ((i=1; i<=records_per_index; i++)); do
+        # Determine document type based on ID for variety
+        doc_type=1
+        if [ $((i % 3)) -eq 2 ]; then
+            doc_type=2  # null/empty values
+        elif [ $((i % 3)) -eq 0 ]; then
+            doc_type=3  # extreme values
+        fi
+        
+        # Generate document
+        doc_json=$(generate_document "${idx}_${i}" $fields_per_index $doc_type)
+        
+        # Insert document
+        curl -s -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' -d "$doc_json" > /dev/null 2>&1
+        
+        if [ $((i % 25)) -eq 0 ]; then
+            echo "    Inserted $i/$records_per_index documents..."
+        fi
+    done
     
-    if [ $((i % 10)) -eq 0 ]; then
-        echo "Inserted $i/$num_records documents..."
-    fi
+    echo "  Completed index $current_index with $records_per_index documents."
 done
 
 echo "Edge case data installation complete!"
-echo "Created index '$index_name' with $num_fields fields and $num_records documents."
+echo "Created $num_indices indices (${index_base_name}_1 to ${index_base_name}_${num_indices})"
+echo "Each index has $fields_per_index fields and $records_per_index documents"
+echo "Total: $total_fields fields across $((num_indices * records_per_index)) documents"

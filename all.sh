@@ -37,7 +37,7 @@ show_help() {
   echo "  security  Install security sample data"
   echo "  makelogs  Install makelogs sample data"
   echo "  search    Data useful for testing search"
-  echo "  edgecase  Install edge case data with 50,000 fields and 100 test documents"
+  echo "  edgecase  Install edge case data with 50,000 fields across 5 indices and 250 test documents"
   echo
   echo "If no scripts are specified, all scripts will be executed."
 }
