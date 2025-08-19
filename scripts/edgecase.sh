@@ -7,7 +7,7 @@ elasticsearch_url="http://localhost:9200"  # replace with your Elasticsearch URL
 index_base_name="testhuge"
 total_fields=50000          # Total number of fields to create across all indices
 fields_per_index=10000      # Number of fields per index (max recommended: 10,000)
-records_per_index=50        # Number of records per index
+records_per_index=10        # Number of records per index
 
 # Calculate number of indices needed
 num_indices=$((total_fields / fields_per_index))
@@ -28,6 +28,10 @@ done
 # Function to generate mapping with specified number of fields
 generate_mapping() {
     local num_fields=$1
+    local index_num=$2
+    
+    # Calculate field offset for this index to ensure unique field names
+    local field_offset=$(((index_num - 1) * fields_per_index))
     
     # Start the mapping JSON
     local mapping='{
@@ -52,10 +56,11 @@ generate_mapping() {
     local field_types=("keyword" "text" "long" "double" "boolean" "date" "ip")
     local type_index=0
     
-    # Generate regular fields
+    # Generate regular fields with unique names across all indices
     for ((i=1; i<=num_fields-3; i++)); do
         local field_name
-        field_name=$(printf "field_%06d" $i)
+        local global_field_num=$((field_offset + i))
+        field_name=$(printf "field_%06d" $global_field_num)
         local field_type=${field_types[$type_index]}
         
         mapping+='"'${field_name}'": {"type": "'${field_type}'"},'
@@ -65,7 +70,7 @@ generate_mapping() {
         
         # Add some nested objects every 1000 fields for variety
         if [ $((i % 1000)) -eq 0 ]; then
-            local nested_name="nested_object_$((i/1000))"
+            local nested_name="nested_object_${index_num}_$((i/1000))"
             mapping+='"'${nested_name}'": {
                 "type": "nested",
                 "properties": {
@@ -100,6 +105,10 @@ generate_document() {
     local doc_id=$1
     local num_fields=$2
     local doc_type=$3  # 1=normal, 2=nulls/empty, 3=extreme
+    local index_num=$4
+    
+    # Calculate field offset for this index to ensure unique field names
+    local field_offset=$(((index_num - 1) * fields_per_index))
     
     # Start the document
     local doc
@@ -117,10 +126,11 @@ generate_document() {
     local field_types=("keyword" "text" "long" "double" "boolean" "date" "ip")
     local type_index=0
     
-    # Generate field data based on document type
+    # Generate field data based on document type with unique field names
     for ((i=1; i<=num_fields-3; i++)); do
         local field_name
-        field_name=$(printf "field_%06d" $i)
+        local global_field_num=$((field_offset + i))
+        field_name=$(printf "field_%06d" $global_field_num)
         local field_type=${field_types[$type_index]}
         
         doc+='"'${field_name}'": '
@@ -166,7 +176,7 @@ generate_document() {
         
         # Add nested objects every 1000 fields
         if [ $((i % 1000)) -eq 0 ]; then
-            local nested_name="nested_object_$((i/1000))"
+            local nested_name="nested_object_${index_num}_$((i/1000))"
             doc+='"'${nested_name}'": {'
             case $doc_type in
                 1) doc+='"nested_field_001": "nested_value_'${i}'", "nested_field_002": "Nested text '${i}'", "nested_field_003": '$((i * 10)) ;;
@@ -212,7 +222,7 @@ for ((idx=1; idx<=num_indices; idx++)); do
     
     # Generate and create mapping
     echo "  Creating mapping with $fields_per_index fields..."
-    mapping_json=$(generate_mapping $fields_per_index)
+    mapping_json=$(generate_mapping $fields_per_index $idx)
     if ! curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' -d "$mapping_json" > /dev/null 2>&1; then
         echo "  Failed to create index mapping for $current_index."
         exit 1
@@ -232,7 +242,7 @@ for ((idx=1; idx<=num_indices; idx++)); do
         fi
         
         # Generate document
-        doc_json=$(generate_document "${idx}_${i}" $fields_per_index $doc_type)
+        doc_json=$(generate_document "${idx}_${i}" $fields_per_index $doc_type $idx)
         
         # Insert document
         curl -s -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' -d "$doc_json" > /dev/null 2>&1
@@ -247,5 +257,5 @@ done
 
 echo "Edge case data installation complete!"
 echo "Created $num_indices indices (${index_base_name}_1 to ${index_base_name}_${num_indices})"
-echo "Each index has $fields_per_index fields and $records_per_index documents"
-echo "Total: $total_fields fields across $((num_indices * records_per_index)) documents"
+echo "Each index has $fields_per_index unique fields and $records_per_index documents"
+echo "Total: $total_fields unique fields across $((num_indices * records_per_index)) documents"
