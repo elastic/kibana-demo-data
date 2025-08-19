@@ -5,7 +5,7 @@ username="elastic"
 password="changeme"
 elasticsearch_url="http://localhost:9200"  # replace with your Elasticsearch URL if different
 index_name="testhuge"
-num_fields=50000
+num_fields=10000
 num_records=100
 
 echo "Waiting for Elasticsearch to be online..."
@@ -24,8 +24,6 @@ done
 # Function to generate mapping with 50,000 fields
 generate_mapping() {
     local num_fields=$1
-    
-    echo "Generating mapping with $num_fields fields..."
     
     # Start the mapping JSON
     local mapping='{
@@ -72,11 +70,6 @@ generate_mapping() {
                     "nested_field_003": {"type": "long"}
                 }
             },'
-        fi
-        
-        # Progress indicator
-        if [ $((i % 5000)) -eq 0 ]; then
-            echo "Generated $i fields..."
         fi
     done
     
@@ -206,7 +199,7 @@ curl -s -u "${username}:${password}" -X DELETE "${elasticsearch_url}/${index_nam
 # Generate and create mapping
 echo "Creating index with dynamic mapping..."
 mapping_json=$(generate_mapping $num_fields)
-if ! curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${index_name}" -H 'Content-Type: application/json' -d "$mapping_json" > /dev/null 2>&1; then
+if ! curl  -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${index_name}" -H 'Content-Type: application/json' -d "$mapping_json"; then
     echo "Failed to create index mapping."
     exit 1
 fi
