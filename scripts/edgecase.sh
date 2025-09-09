@@ -128,7 +128,8 @@ generate_document() {
     local type_index=0
     
     # Generate field data based on document type with unique field names
-    for ((i=1; i<=num_fields-reserved_fields_count; i++)); do
+    # Subtract 3 to account for the base fields: @timestamp, message, level
+    for ((i=1; i<=num_fields-3; i++)); do
         local field_name
         local global_field_num=$((field_offset + i))
         field_name=$(printf "field_%06d" $global_field_num)
@@ -224,7 +225,6 @@ for ((idx=1; idx<=num_indices; idx++)); do
     # Generate and create mapping
     echo "  Creating mapping with $fields_per_index fields..."
     mapping_json=$(generate_mapping $fields_per_index $idx)
-    if ! curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' -d "$mapping_json" > /dev/null 2>&1; then
     mapping_response=$(curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' -d "$mapping_json")
     if [ $? -ne 0 ]; then
         echo "  Failed to create index mapping for $current_index."
