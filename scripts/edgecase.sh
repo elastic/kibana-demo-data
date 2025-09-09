@@ -225,7 +225,11 @@ for ((idx=1; idx<=num_indices; idx++)); do
     echo "  Creating mapping with $fields_per_index fields..."
     mapping_json=$(generate_mapping $fields_per_index $idx)
     if ! curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' -d "$mapping_json" > /dev/null 2>&1; then
+    mapping_response=$(curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' -d "$mapping_json")
+    if [ $? -ne 0 ]; then
         echo "  Failed to create index mapping for $current_index."
+        echo "  Error response from Elasticsearch:"
+        echo "$mapping_response"
         exit 1
     fi
     
