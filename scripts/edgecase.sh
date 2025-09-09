@@ -250,7 +250,13 @@ for ((idx=1; idx<=num_indices; idx++)); do
         doc_json=$(generate_document "${idx}_${i}" $fields_per_index $doc_type $idx)
         
         # Insert document
-        curl -s -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' -d "$doc_json" > /dev/null 2>&1
+        # Insert document and check for errors
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' -d "$doc_json")
+        if [ "$http_code" -ne 201 ] && [ "$http_code" -ne 200 ]; then
+            echo "    ERROR: Failed to insert document ${i} into index ${current_index} (HTTP status: $http_code)"
+            # Optionally, exit on error. Uncomment the next line to stop on first failure.
+            # exit 1
+        fi
         
         if [ $((i % 25)) -eq 0 ]; then
             echo "    Inserted $i/$records_per_index documents..."
