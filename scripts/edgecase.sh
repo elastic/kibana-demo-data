@@ -57,6 +57,7 @@ generate_mapping() {
     local type_index=0
     
     # Generate regular fields with unique names across all indices
+    # Subtract 3 to account for the base fields: @timestamp, message, level
     for ((i=1; i<=num_fields-3; i++)); do
         local field_name
         local global_field_num=$((field_offset + i))
