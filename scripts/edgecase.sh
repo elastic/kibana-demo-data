@@ -128,7 +128,7 @@ generate_document() {
     local type_index=0
     
     # Generate field data based on document type with unique field names
-    for ((i=1; i<=num_fields-3; i++)); do
+    for ((i=1; i<=num_fields-reserved_fields_count; i++)); do
         local field_name
         local global_field_num=$((field_offset + i))
         field_name=$(printf "field_%06d" $global_field_num)
