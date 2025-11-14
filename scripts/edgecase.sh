@@ -296,8 +296,7 @@ while [ $idx -le $num_indices ]; do
     
     # Generate and create mapping
     echo "  Creating mapping with $fields_per_index fields..."
-    mapping_json=$(generate_mapping $fields_per_index $idx)
-    mapping_response=$(curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' -d "$mapping_json")
+    mapping_response=$(generate_mapping $fields_per_index $idx | curl -s -u "${username}:${password}" -X PUT "${elasticsearch_url}/${current_index}" -H 'Content-Type: application/json' --data-binary @-)
     if [ $? -ne 0 ]; then
         echo "  Failed to create index mapping for $current_index."
         echo "  Error response from Elasticsearch:"
@@ -320,11 +319,9 @@ while [ $idx -le $num_indices ]; do
         fi
         
         # Generate document
-        doc_json=$(generate_document "${idx}_${i}" $fields_per_index $doc_type $idx)
         
-        # Insert document
         # Insert document and check for errors
-        http_code=$(curl -s -o /dev/null -w "%{http_code}" -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' -d "$doc_json")
+        http_code=$(generate_document "${idx}_${i}" $fields_per_index $doc_type $idx | curl -s -o /dev/null -w "%{http_code}" -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' --data-binary @-)
         if [ "$http_code" -ne 201 ] && [ "$http_code" -ne 200 ]; then
             echo "    ERROR: Failed to insert document ${i} into index ${current_index} (HTTP status: $http_code)"
             # Optionally, exit on error. Uncomment the next line to stop on first failure.
