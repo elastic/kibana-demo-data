@@ -36,6 +36,7 @@ show_help() {
   echo "  searchkit  Install searchkit sample data"
   echo "  security  Install security sample data"
   echo "  makelogs  Install makelogs sample data"
+  echo "  metrics   Install metrics sample data using simian-forge"
   echo "  search    Data useful for testing search"
   echo
   echo "If no scripts are specified, all scripts will be executed."
@@ -49,7 +50,7 @@ if [ "$1" = "--help" ]; then
 fi
 
 # available scripts
-scripts="custom o11y sample searchkit security makelogs"
+scripts="custom o11y sample searchkit security makelogs metrics"
 
 if [ $# -eq 0 ]; then
     # execute all scripts
