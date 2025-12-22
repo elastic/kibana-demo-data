@@ -7,7 +7,7 @@ elasticsearch_url="http://localhost:9200"  # replace with your Elasticsearch URL
 index_base_name="test-many-fields"
 total_fields=50000          # Total number of fields to create across all indices
 fields_per_index=5000       # Number of fields per index (optimized for performance)
-records_per_index=1         # Number of records per index
+records_per_index=2         # Number of records per index
 
 # Calculate number of indices needed
 num_indices=$((total_fields / fields_per_index))
@@ -64,12 +64,13 @@ generate_mapping() {
             "properties": {
                 "@timestamp": {"type": "date"},
                 "message": {"type": "text"},
+                "id": {"type": "keyword"},
                 "level": {"type": "keyword"},'
     
     # Generate regular fields with unique names across all indices
-    # Subtract 3 to account for the base fields: @timestamp, message, level
+    # Subtract 4 to account for the base fields: @timestamp, message, id, level
     i=1
-    while [ $i -le $((num_fields - 3)) ]; do
+    while [ $i -le $((num_fields - 4)) ]; do
         global_field_num=$((field_offset + i))
         field_name=$(printf "field_%06d" $global_field_num)
         field_type=$(get_field_type $i)
@@ -122,6 +123,7 @@ generate_document() {
     # Start the document
     doc="{\"@timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")\",
                \"message\": \"Generated edge case test document ${doc_id}\",
+               \"id\": \"${doc_id}\",
                \"level\": \""
     
     case $doc_type in
@@ -131,9 +133,9 @@ generate_document() {
     esac
     
     # Generate field data based on document type with unique field names
-    # Subtract 3 to account for the base fields: @timestamp, message, level
+    # Subtract 4 to account for the base fields: @timestamp, message, id, level
     i=1
-    while [ $i -le $((num_fields - 3)) ]; do
+    while [ $i -le $((num_fields - 4)) ]; do
         global_field_num=$((field_offset + i))
         field_name=$(printf "field_%06d" $global_field_num)
         field_type=$(get_field_type $i)
