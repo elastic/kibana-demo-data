@@ -7,7 +7,7 @@ elasticsearch_url="http://localhost:9200"  # replace with your Elasticsearch URL
 index_base_name="test-many-fields"
 total_fields=50000          # Total number of fields to create across all indices
 fields_per_index=5000       # Number of fields per index (optimized for performance)
-records_per_index=2         # Number of records per index
+records_per_index=1         # Number of records per index
 
 # Calculate number of indices needed
 num_indices=$((total_fields / fields_per_index))
