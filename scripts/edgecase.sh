@@ -121,7 +121,7 @@ generate_document() {
     field_offset=$(((index_num - 1) * fields_per_index))
     
     # Start the document
-    doc="{\"@timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")\",
+    doc="{\"@timestamp\": \"$(TZ=UTC date -u +"%Y-%m-%dT%H:%M:%SZ")\",
                \"message\": \"Generated edge case test document ${doc_id}\",
                \"id\": \"${doc_id}\",
                \"level\": \""
