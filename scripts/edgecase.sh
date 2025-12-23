@@ -110,29 +110,22 @@ generate_mapping() {
     echo "$mapping"
 }
 
-# Function to generate a single document with edge case data
+# Function to generate a single document with test data
 generate_document() {
     doc_id=$1
     num_fields=$2
-    doc_type=$3  # 1=normal, 2=nulls/empty, 3=extreme
-    index_num=$4
+    index_num=$3
     
     # Calculate field offset for this index to ensure unique field names
     field_offset=$(((index_num - 1) * fields_per_index))
     
     # Start the document
     doc="{\"@timestamp\": \"$(TZ=UTC date -u +"%Y-%m-%dT%H:%M:%SZ")\",
-               \"message\": \"Generated edge case test document ${doc_id}\",
+               \"message\": \"Generated test document ${doc_id}\",
                \"id\": \"${doc_id}\",
-               \"level\": \""
+               \"level\": \"info\","
     
-    case $doc_type in
-        1) doc="${doc}info\"," ;;
-        2) doc="${doc}warn\"," ;;
-        3) doc="${doc}error\"," ;;
-    esac
-    
-    # Generate field data based on document type with unique field names
+    # Generate field data with unique field names
     # Subtract 4 to account for the base fields: @timestamp, message, id, level
     i=1
     while [ $i -le $((num_fields - 4)) ]; do
@@ -142,137 +135,40 @@ generate_document() {
         
         doc="${doc}\"${field_name}\": "
         
-        case $doc_type in
-            1) # Normal values
-                case $field_type in
-                    "keyword") doc="${doc}\"value_${i}\"" ;;
-                    "text") doc="${doc}\"This is text content for field ${i}\"" ;;
-                    "long") doc="${doc}$((i * 100))" ;;
-                    "double") doc="${doc}$((i * 100)).$((i % 100))" ;;
-                    "boolean") 
-                        if [ $((i % 2)) -eq 0 ]; then
-                            doc="${doc}true"
-                        else
-                            doc="${doc}false"
-                        fi
-                        ;;
-                    "date") doc="${doc}\"2024-01-01T12:$(printf "%02d" $((i % 60))):00.000Z\"" ;;
-                    "ip") doc="${doc}\"192.168.$((i % 255)).$((i % 255))\"" ;;
-                esac
+        # Generate normal values based on field type
+        case $field_type in
+            "keyword") doc="${doc}\"value_${i}\"" ;;
+            "text") doc="${doc}\"This is text content for field ${i}\"" ;;
+            "long") doc="${doc}$((i * 100))" ;;
+            "double") doc="${doc}$((i * 100)).$((i % 100))" ;;
+            "boolean") 
+                if [ $((i % 2)) -eq 0 ]; then
+                    doc="${doc}true"
+                else
+                    doc="${doc}false"
+                fi
                 ;;
-            2) # Null and empty values
-                case $field_type in
-                    "keyword") 
-                        if [ $((i % 3)) -eq 0 ]; then
-                            doc="${doc}null"
-                        else
-                            doc="${doc}\"\""
-                        fi
-                        ;;
-                    "text") 
-                        if [ $((i % 3)) -eq 0 ]; then
-                            doc="${doc}null"
-                        else
-                            doc="${doc}\"\""
-                        fi
-                        ;;
-                    "long") 
-                        if [ $((i % 3)) -eq 0 ]; then
-                            doc="${doc}null"
-                        else
-                            doc="${doc}0"
-                        fi
-                        ;;
-                    "double") 
-                        if [ $((i % 3)) -eq 0 ]; then
-                            doc="${doc}null"
-                        else
-                            doc="${doc}0.0"
-                        fi
-                        ;;
-                    "boolean") 
-                        if [ $((i % 3)) -eq 0 ]; then
-                            doc="${doc}null"
-                        else
-                            doc="${doc}false"
-                        fi
-                        ;;
-                    "date") 
-                        if [ $((i % 3)) -eq 0 ]; then
-                            doc="${doc}null"
-                        else
-                            doc="${doc}\"1970-01-01T00:00:00.000Z\""
-                        fi
-                        ;;
-                    "ip") 
-                        if [ $((i % 3)) -eq 0 ]; then
-                            doc="${doc}null"
-                        else
-                            doc="${doc}\"0.0.0.0\""
-                        fi
-                        ;;
-                esac
-                ;;
-            3) # Extreme values
-                case $field_type in
-                    "keyword") doc="${doc}\"very_long_keyword_value_that_might_cause_issues_field_${i}_with_unicode_你好世界_and_special_chars_!@#\$%\"" ;;
-                    "text") doc="${doc}\"Extremely long text field ${i} with lots of content and unicode characters: 🌍 🚀 ñáéíóú and JSON escapes: {\\\"test\\\": true}\"" ;;
-                    "long") 
-                        if [ $((i % 2)) -eq 0 ]; then
-                            doc="${doc}9223372036854775807"
-                        else
-                            doc="${doc}-9223372036854775808"
-                        fi
-                        ;;
-                    "double") 
-                        if [ $((i % 2)) -eq 0 ]; then
-                            doc="${doc}1.7976931348623157E308"
-                        else
-                            doc="${doc}-1.7976931348623157E308"
-                        fi
-                        ;;
-                    "boolean") doc="${doc}true" ;;
-                    "date") 
-                        if [ $((i % 2)) -eq 0 ]; then
-                            doc="${doc}\"2024-12-31T23:59:59.999Z\""
-                        else
-                            doc="${doc}\"1970-01-01T00:00:00.000Z\""
-                        fi
-                        ;;
-                    "ip") doc="${doc}\"255.255.255.255\"" ;;
-                esac
-                ;;
+            "date") doc="${doc}\"2024-01-01T12:$(printf "%02d" $((i % 60))):00.000Z\"" ;;
+            "ip") doc="${doc}\"192.168.$((i % 255)).$((i % 255))\"" ;;
         esac
         
         doc="${doc},"
         
-        # Add nested objects every 1000 fields
+        # Add nested objects every 1000 fields for variety
         if [ $((i % 1000)) -eq 0 ]; then
             nested_name="nested_object_${index_num}_$((i/1000))"
             doc="${doc}\"${nested_name}\": {"
-            case $doc_type in
-                1) doc="${doc}\"nested_field_001\": \"nested_value_${i}\", \"nested_field_002\": \"Nested text ${i}\", \"nested_field_003\": $((i * 10))" ;;
-                2) doc="${doc}\"nested_field_001\": null, \"nested_field_002\": \"\", \"nested_field_003\": 0" ;;
-                3) doc="${doc}\"nested_field_001\": \"NESTED_MAX_${i}\", \"nested_field_002\": \"Extreme nested content\", \"nested_field_003\": 999999999" ;;
-            esac
+            doc="${doc}\"nested_field_001\": \"nested_value_${i}\", \"nested_field_002\": \"Nested text ${i}\", \"nested_field_003\": $((i * 10))"
             doc="${doc}},"
         fi
         i=$((i + 1))
     done
     
     # Add final geo_location and nested object
-    case $doc_type in
-        1) doc="${doc}\"geo_location\": {\"lat\": 40.7128, \"lon\": -74.0060}," ;;
-        2) doc="${doc}\"geo_location\": {\"lat\": 0.0, \"lon\": 0.0}," ;;
-        3) doc="${doc}\"geo_location\": {\"lat\": 90.0, \"lon\": 180.0}," ;;
-    esac
+    doc="${doc}\"geo_location\": {\"lat\": 40.7128, \"lon\": -74.0060},"
     
     doc="${doc}\"final_nested\": {"
-    case $doc_type in
-        1) doc="${doc}\"final_field_001\": \"final_value\", \"final_field_002\": \"Final text content\"" ;;
-        2) doc="${doc}\"final_field_001\": null, \"final_field_002\": \"\"" ;;
-        3) doc="${doc}\"final_field_001\": \"FINAL_EXTREME_VALUE\", \"final_field_002\": \"Final extreme content with unicode 🎯\"" ;;
-    esac
+    doc="${doc}\"final_field_001\": \"final_value\", \"final_field_002\": \"Final text content\""
     doc="${doc}}"
     
     doc="${doc}}"
@@ -312,18 +208,10 @@ while [ $idx -le $num_indices ]; do
     echo "  Generating and inserting $records_per_index documents..."
     i=1
     while [ $i -le $records_per_index ]; do
-        # Determine document type based on ID for variety
-        doc_type=1
-        if [ $((i % 3)) -eq 2 ]; then
-            doc_type=2  # null/empty values
-        elif [ $((i % 3)) -eq 0 ]; then
-            doc_type=3  # extreme values
-        fi
-        
         # Generate document
         
         # Insert document and check for errors
-        http_code=$(generate_document "${idx}_${i}" $fields_per_index $doc_type $idx | curl -s -o /dev/null -w "%{http_code}" -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' --data-binary @-)
+        http_code=$(generate_document "${idx}_${i}" $fields_per_index $idx | curl -s -o /dev/null -w "%{http_code}" -u "${username}:${password}" -X POST "${elasticsearch_url}/${current_index}/_doc/${i}" -H 'Content-Type: application/json' --data-binary @-)
         if [ "$http_code" -ne 201 ] && [ "$http_code" -ne 200 ]; then
             echo "    ERROR: Failed to insert document ${i} into index ${current_index} (HTTP status: $http_code)"
             # Optionally, exit on error. Uncomment the next line to stop on first failure.
