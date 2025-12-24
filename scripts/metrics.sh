@@ -67,7 +67,7 @@ fi
 
 # Run forge command to ingest metrics data
 log "Ingesting metrics data with forge..."
-./forge --dataset hosts --count 25 --interval 30s --elasticsearch-url ${ELASTICSEARCH_URL} --elasticsearch-auth ${USERNAME}:${PASSWORD}
+./forge --dataset hosts --count 25 --interval 30s --no-realime --backfill now-1h --elasticsearch-url ${ELASTICSEARCH_URL} --elasticsearch-auth ${USERNAME}:${PASSWORD}
 
 if [ $? -eq 0 ]; then
     log "Metrics data ingestion completed successfully"
