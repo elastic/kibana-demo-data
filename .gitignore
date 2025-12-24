@@ -1,0 +1,5 @@
+# Dependencies
+node_modules/
+
+# Lock files (keep yarn.lock, ignore package-lock.json)
+package-lock.json

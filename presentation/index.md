@@ -50,13 +50,6 @@ curl -sSL https://elastic.github.io/kibana-demo-data | sh -s security
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s makelogs
 ```
 
-# Add Kibana sample data
-
-Evergreen Kibana ecommerce, flights and logs sample data
-```sh
-curl -sSL https://elastic.github.io/kibana-demo-data | sh -s sample
-```
-
 ---
 
 # Add it all
@@ -68,7 +61,7 @@ curl -sSL https://elastic.github.io/kibana-demo-data | sh
 ```
 Or some of them together
 ```sh
-curl -sSL https://elastic.github.io/kibana-demo-data | sh -s sample o11y
+curl -sSL https://elastic.github.io/kibana-demo-data | sh -s custom o11y
 ```
 
 ---
