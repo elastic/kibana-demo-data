@@ -55,7 +55,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Check if forge executable exists, if not run npm run build
-if [ ! -f "forge" ]; then
+if [ ! -f "dist" ]; then
     log "Building simian-forge..."
     npm run build
     if [ $? -ne 0 ]; then
