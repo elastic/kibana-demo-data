@@ -21,7 +21,6 @@ yarn start & curl -sSL https://elastic.github.io/kibana-demo-data | sh
 
 The script installs several demo data sets, each with an associated variable name that can be used for selective installation:
 
-- **Kibana Sample Data** (`sample`)
 - **Custom Sample Data** from the [data](./data) folder of this repository (`custom`)
 - **Basic Security Sample Data** (`security`)
 - **Observability (O11y) Sample Data** (`o11y`)
@@ -32,16 +31,16 @@ The script installs several demo data sets, each with an associated variable nam
 
 ## Installing Specific Data Sets
 
-If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`, or `edgecase`):
+If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `custom`, `security`, `o11y`, `makelogs`, or `edgecase`):
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s <data_set>
 ```
 
-For example, to install **Kibana Sample Data** and **Custom Sample Data** together, run:
+For example, to install **Custom Sample Data** and **Security Sample Data** together, run:
 
 ```bash
-curl -sSL  https://elastic.github.io/kibana-demo-data | sh -s sample custom
+curl -sSL  https://elastic.github.io/kibana-demo-data | sh -s custom security
 ```
 
 To install **Edge Case Data** with 50,000 dynamically generated unique fields across 10 indices and 10 test documents:
