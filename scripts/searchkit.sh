@@ -41,5 +41,5 @@ create_index_and_load_data() {
      "https://raw.githubusercontent.com/searchkit/searchkit/refs/heads/main/sample-data/mrp-products/data.json"
 
    create_index_and_load_data "parks" \
-     "https://raw.githubusercontent.com/searchkit/searchkit/refs/heads/main/sample-data/mrp-products/mapping.json" \
-     "https://raw.githubusercontent.com/searchkit/searchkit/refs/heads/main/sample-data/mrp-products/data.json"
+     "https://raw.githubusercontent.com/searchkit/searchkit/refs/heads/main/sample-data/parks/mapping.json" \
+     "https://raw.githubusercontent.com/searchkit/searchkit/refs/heads/main/sample-data/parks/parks.json"
