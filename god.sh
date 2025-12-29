@@ -65,13 +65,13 @@ process_remote() {
   echo "Processing ${base_filename} completed"
 }
 
-process_remote "https://elastic.github.io/kibana-demo-data/data/log-apache_error.ndjson"
-process_remote "https://elastic.github.io/kibana-demo-data/data/log-aws_s3.ndjson"
-process_remote "https://elastic.github.io/kibana-demo-data/data/log-custom_multiplex.ndjson"
-process_remote "https://elastic.github.io/kibana-demo-data/data/log-k8s_container.ndjson"
-process_remote "https://elastic.github.io/kibana-demo-data/data/log-nginx_error.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-apache.error.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-aws.s3.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-custom.multiplex.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-kubernetes.container_logs.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-nginx.error.ndjson"
 process_remote "https://elastic.github.io/kibana-demo-data/data/log-nqinx.ndjson"
-process_remote "https://elastic.github.io/kibana-demo-data/data/log-system_error.ndjson"
+process_remote "https://elastic.github.io/kibana-demo-data/data/log-system.error.ndjson"
 process_remote "https://elastic.github.io/kibana-demo-data/data/custom-metrics-without-timestamp.ndjson"
 
 echo "Installing remote sample data to Elasticsearch finished"
@@ -129,13 +129,13 @@ process_remote_kibana() {
 
 echo "Installing remote sample data"
 
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-apache_error.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-aws_s3.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-custom_multiplex.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-k8s_container.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-nginx_error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-apache.error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-aws.s3.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-custom.multiplex.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-kubernetes.container_logs.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-nginx.error.ndjson"
 process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-nqinx.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-system_error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/log-system.error.ndjson"
 process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/custom-metrics-without-timestamp.ndjson"
 
 

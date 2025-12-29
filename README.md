@@ -28,11 +28,12 @@ The script installs several demo data sets, each with an associated variable nam
 - **Makelogs Sample Data** (`makelogs`)
 - **Searchkit Data** (`searchkit`)
 - **Metrics Sample Data** (`metrics`) - Uses [simian-forge](https://github.com/simianhacker/simian-forge) to generate host metrics data
+- **Edge Case Data** with 50,000 dynamically generated unique fields across 10 indices (5,000 unique fields each) and 10 test documents for testing massive field scenarios (`edgecase`)
 
 
 ## Installing Specific Data Sets
 
-If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`, or `metrics`):
+If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`, `metrics`, or `edgecase`):
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s <data_set>
@@ -42,4 +43,10 @@ For example, to install **Kibana Sample Data** and **Custom Sample Data** togeth
 
 ```bash
 curl -sSL  https://elastic.github.io/kibana-demo-data | sh -s sample custom
+```
+
+To install **Edge Case Data** with 50,000 dynamically generated unique fields across 10 indices and 10 test documents:
+
+```bash
+curl -sSL https://elastic.github.io/kibana-demo-data | sh -s edgecase
 ```
