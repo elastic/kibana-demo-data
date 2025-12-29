@@ -36,6 +36,7 @@ show_help() {
   echo "  searchkit  Install searchkit sample data"
   echo "  security  Install security sample data"
   echo "  makelogs  Install makelogs sample data"
+  echo "  metrics   Install metrics sample data using simian-forge"
   echo "  search    Data useful for testing search"
   echo "  edgecase  Install edge case data with 50,000 unique fields across 10 indices and 10 test documents"
   echo
@@ -50,7 +51,7 @@ if [ "$1" = "--help" ]; then
 fi
 
 # available scripts
-scripts="custom o11y sample searchkit security makelogs edgecase"
+scripts="custom o11y sample searchkit security makelogs edgecase metrics"
 
 if [ $# -eq 0 ]; then
     # execute all scripts
