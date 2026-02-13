@@ -42,5 +42,5 @@ done
 
 
 log "Start installing sample data"
-yarn --cwd x-pack/plugins/security_solution test:generate --kibana http://${USERNAME}:${PASSWORD}@${KIBANA_URL}${dev_prefix}
+yarn --cwd x-pack/solutions/security/plugins/security_solution test:generate --kibana http://${USERNAME}:${PASSWORD}@${KIBANA_URL}${dev_prefix}
 log "Finished installing sample data"
