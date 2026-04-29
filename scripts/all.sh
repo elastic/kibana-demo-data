@@ -28,6 +28,7 @@ if [ $# -eq 0 ]; then
    execute_script "custom"
    execute_script "search"
    execute_script "o11y"
+   execute_script "sample"
    execute_script "security"
    execute_script "makelogs"
    wait
@@ -46,7 +47,7 @@ search_string_in_args() {
     return 1
 }
 
-for script in "custom" "o11y" "security" "makelogs" "searchkit"; do
+for script in "custom" "o11y" "sample" "security" "makelogs" "searchkit"; do
     if search_string_in_args "$script" "$@"; then
         execute_script "$script"
     fi
