@@ -100,11 +100,11 @@ echo "Kibana is now online!"
 # Install sample data using curl
 echo "Installing sample data"
 echo "Install logs"
-curl -u ${username}:${password} -X POST "${kibana_url}${dev_prefix}/api/sample_data/logs" -s -o /dev/null -H 'kbn-xsrf: true' -H 'Content-Type: application/json' 2>&1
+curl -u "${username}:${password}" -X POST "${kibana_url}${dev_prefix}/api/sample_data/logs" -s -o /dev/null -H 'kbn-xsrf: true' -H 'elastic-api-version: internal' -H 'Content-Type: application/json' 2>&1
 echo "Install ecommerce"
-curl -u ${username}:${password} -X POST "${kibana_url}${dev_prefix}/api/sample_data/ecommerce" -s -o /dev/null -H 'kbn-xsrf: true' -H 'Content-Type: application/json' 2>&1
+curl -u "${username}:${password}" -X POST "${kibana_url}${dev_prefix}/api/sample_data/ecommerce" -s -o /dev/null -H 'kbn-xsrf: true' -H 'elastic-api-version: internal' -H 'Content-Type: application/json' 2>&1
 echo "Install flights"
-curl -u ${username}:${password} -X POST "${kibana_url}${dev_prefix}/api/sample_data/flights" -s -o /dev/null -H 'kbn-xsrf: true' -H 'Content-Type: application/json' 2>&1
+curl -u "${username}:${password}" -X POST "${kibana_url}${dev_prefix}/api/sample_data/flights" -s -o /dev/null -H 'kbn-xsrf: true' -H 'elastic-api-version: internal' -H 'Content-Type: application/json' 2>&1
 echo "Sample data installed finished!"
 
 
