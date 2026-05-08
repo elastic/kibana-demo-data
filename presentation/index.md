@@ -1,6 +1,5 @@
 ---
 theme: uncover
-lang: en
 
 ---
 ![bg left:20% 80%](./kibana.png)
