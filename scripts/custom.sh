@@ -98,33 +98,36 @@ done
 
 process_remote_kibana() {
   remote_json_url=$1
+  time_field_name=$2  # optional
 
   # Extract the base filename from the URL
   base_filename=$(basename "$remote_json_url" .ndjson)
-
   echo "Provide ${base_filename} data views"
-
+  if [ -n "$time_field_name" ]; then
+    time_field_line=',
+       "timeFieldName": "'"$time_field_name"'"'
+  else
+    time_field_line=''
+  fi
   curl -s -u "${USERNAME}:${PASSWORD}" "${kibana_url}${dev_prefix}/api/data_views/data_view" -H 'kbn-xsrf: true' -H 'elastic-api-version: 2023-10-31' -H 'Content-Type: application/json' -d '
   {
     "data_view": {
        "title": "'"$base_filename"'",
-       "name": "'"$base_filename"'",
-       "timeFieldName": "@timestamp"
+       "name": "'"$base_filename"'"'"$time_field_line"'
     }
   }' > /dev/null
 }
 
 echo "Installing custom sample data, Kibana part"
 
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-apache.error.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-aws.s3.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-custom.multiplex.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-kubernetes.container_logs.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-nginx.error.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-nqinx.ndjson"
-process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-system.error.ndjson"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-apache.error.ndjson" "@timestamp"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-aws.s3.ndjson" "@timestamp"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-custom.multiplex.ndjson" "@timestamp"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-kubernetes.container_logs.ndjson" "@timestamp"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-nginx.error.ndjson" "@timestamp"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-nqinx.ndjson" "@timestamp"
+process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/logs-system.error.ndjson" "@timestamp"
 process_remote_kibana "https://elastic.github.io/kibana-demo-data/data/custom-metrics-without-timestamp.ndjson"
 
 
 echo "Installing custom sample data finished"
-
