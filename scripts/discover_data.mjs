@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 /*
  * Seeds the "discover" demo dataset:
- *  - a plain log index (classic / ES|QL / ES|QL group-by / patterns / change
- *    point tabs)
+ *  - a plain log index (classic / ad hoc classic / field statistics / ES|QL /
+ *    ES|QL group-by / patterns / change point tabs)
  *  - a TSDB metrics index (ES|QL "Metrics Experience" tab)
+ *  - an ES|QL view over the logs index ("ES|QL View" tab)
  *  - an ES|QL Data Federation dataset over a public S3 bucket ("Data
  *    Sources" tab)
  *  - four demo spaces, one per solution type (classic / oblt / security / es)
- *  - a rich, 8-tab Discover session created in every space, plus a dashboard
- *    embedding that session
+ *  - a rich, 11-tab Discover session created in every space, plus a
+ *    dashboard embedding that session
+ *
+ * Every tab and the dashboard store an explicit time_range, so they show
+ * data regardless of the viewer's own default time range - as long as
+ * Discover is opened reasonably soon after this script runs.
  *
  * Uses only Node's built-in fetch - no npm dependencies - so it can run
  * standalone (downloaded alongside discover.sh) without needing a Kibana
@@ -30,11 +35,24 @@ const AUTH_HEADER = 'Basic ' + Buffer.from(`${USERNAME}:${PASSWORD}`).toString('
 const LOGS_INDEX = 'demo-discover-logs';
 const METRICS_INDEX = 'demo-discover-metrics';
 const TRACES_INDEX_PATTERN = 'traces-apm*';
+const ESQL_VIEW = 'demo_discover_view';
 
 // ES|QL Data Federation: a public, unauthenticated S3 dataset (AWS Open Data
 // Bitcoin blockchain) for the "Data Sources" tab.
 const FEDERATION_DATA_SOURCE = 'aws_open_data_us_east_2';
 const FEDERATION_DATASET = 'btc_blocks';
+
+// All of this run's generated data (logs, metrics, traces) lives within this
+// many hours of "now". Tabs/dashboards store a relative time_range of this
+// same width so they reliably show data regardless of the viewer's own
+// default time range - as long as Discover is opened reasonably soon after
+// this script runs (the same assumption the rest of this repo's synthtrace
+// scenarios make).
+const RECENT_DATA_WINDOW_HOURS = 9;
+const RECENT_TIME_RANGE = { from: `now-${RECENT_DATA_WINDOW_HOURS}h`, to: 'now', mode: 'relative' };
+// The federated dataset is real historical data (Jan 2009), unrelated to
+// "now", so it needs its own fixed time range.
+const FEDERATION_TIME_RANGE = { from: '2009-01-01', to: '2009-02-01', mode: 'absolute' };
 
 const SPACES = [
   { id: 'demo-classic', name: 'Demo Classic', solution: 'classic' },
@@ -75,6 +93,15 @@ async function esBulk(ndjsonLines) {
   return json;
 }
 
+async function recreateIndex(indexName, indexBody) {
+  log(`Creating index "${indexName}"...`);
+  await fetch(`${ES_URL}/${indexName}`, {
+    method: 'DELETE',
+    headers: { Authorization: AUTH_HEADER },
+  }).catch(() => {});
+  await esFetch(`/${indexName}`, { method: 'PUT', body: indexBody });
+}
+
 async function kbnFetch(path, { method = 'GET', body, space, internal = false } = {}) {
   const spacePrefix = space ? `/s/${space}` : '';
   const url = `${KIBANA_URL}${DEV_PREFIX}${spacePrefix}${path}`;
@@ -109,25 +136,17 @@ const MESSAGES = {
 };
 
 async function seedLogsIndex() {
-  log(`Creating index "${LOGS_INDEX}"...`);
-  await fetch(`${ES_URL}/${LOGS_INDEX}`, {
-    method: 'DELETE',
-    headers: { Authorization: AUTH_HEADER },
-  }).catch(() => {});
-  await esFetch(`/${LOGS_INDEX}`, {
-    method: 'PUT',
-    body: {
-      mappings: {
-        properties: {
-          '@timestamp': { type: 'date' },
-          'host.name': { type: 'keyword' },
-          'service.name': { type: 'keyword' },
-          'log.level': { type: 'keyword' },
-          message: { type: 'text' },
-          response_time_ms: { type: 'long' },
-          bytes: { type: 'long' },
-          'url.path': { type: 'keyword' },
-        },
+  await recreateIndex(LOGS_INDEX, {
+    mappings: {
+      properties: {
+        '@timestamp': { type: 'date' },
+        'host.name': { type: 'keyword' },
+        'service.name': { type: 'keyword' },
+        'log.level': { type: 'keyword' },
+        message: { type: 'text' },
+        response_time_ms: { type: 'long' },
+        bytes: { type: 'long' },
+        'url.path': { type: 'keyword' },
       },
     },
   });
@@ -172,12 +191,6 @@ function generateMetricValue(type, i) {
 }
 
 async function seedMetricsIndex() {
-  log(`Creating TSDB index "${METRICS_INDEX}"...`);
-  await fetch(`${ES_URL}/${METRICS_INDEX}`, {
-    method: 'DELETE',
-    headers: { Authorization: AUTH_HEADER },
-  }).catch(() => {});
-
   const dimensions = [
     { name: 'host.name', values: HOSTS },
     { name: 'service.name', values: SERVICES },
@@ -194,16 +207,13 @@ async function seedMetricsIndex() {
     properties[metric.name] = getEsMapping(metric.type);
   }
 
-  await esFetch(`/${METRICS_INDEX}`, {
-    method: 'PUT',
-    body: {
-      settings: {
-        mode: 'time_series',
-        routing_path: dimensions.map((d) => d.name),
-        time_series: { start_time: start, end_time: end },
-      },
-      mappings: { properties },
+  await recreateIndex(METRICS_INDEX, {
+    settings: {
+      mode: 'time_series',
+      routing_path: dimensions.map((d) => d.name),
+      time_series: { start_time: start, end_time: end },
     },
+    mappings: { properties },
   });
 
   const count = 500;
@@ -249,6 +259,18 @@ async function seedFederatedDataset() {
   log(`Seeded federated dataset "${FEDERATION_DATASET}".`);
 }
 
+async function seedEsqlView() {
+  log(`Registering ES|QL view "${ESQL_VIEW}"...`);
+  await esFetch(`/_query/view/${ESQL_VIEW}`, {
+    method: 'PUT',
+    body: {
+      query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY service.name, log.level | SORT count DESC`,
+      description: 'Error/warn/info counts by service, as a reusable ES|QL view',
+    },
+  });
+  log(`Seeded ES|QL view "${ESQL_VIEW}".`);
+}
+
 async function ensureSpace(space) {
   const exists = await fetch(`${KIBANA_URL}${DEV_PREFIX}/api/spaces/space/${space.id}`, {
     headers: { Authorization: AUTH_HEADER, 'kbn-xsrf': 'true' },
@@ -282,6 +304,11 @@ async function ensureDataView(space) {
 }
 
 function buildTabs(dataViewId) {
+  // Real, computed bounds for the Change Point bucket, matching the window
+  // the logs data actually lives in - not a hardcoded, year-specific guess.
+  const bucketEnd = new Date().toISOString();
+  const bucketStart = new Date(Date.now() - RECENT_DATA_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+
   return [
     {
       id: 'classic',
@@ -293,6 +320,34 @@ function buildTabs(dataViewId) {
       column_order: ['@timestamp', 'host.name', 'service.name', 'log.level', 'message'],
       sort: [{ name: '@timestamp', direction: 'desc' }],
       view_mode: 'documents',
+      time_range: RECENT_TIME_RANGE,
+    },
+    {
+      id: 'field-statistics',
+      label: 'Field Statistics',
+      type: 'default',
+      data_source: { type: 'data_view_reference', ref_id: dataViewId },
+      query: { language: 'kql', expression: '' },
+      filters: [],
+      view_mode: 'aggregated',
+      time_range: RECENT_TIME_RANGE,
+    },
+    {
+      id: 'classic-adhoc',
+      label: 'Classic (Ad Hoc)',
+      type: 'default',
+      data_source: {
+        type: 'data_view_spec',
+        name: 'Demo Discover Logs (ad hoc)',
+        index_pattern: `${LOGS_INDEX}*`,
+        time_field: '@timestamp',
+      },
+      query: { language: 'kql', expression: 'log.level: "warn"' },
+      filters: [],
+      column_order: ['@timestamp', 'host.name', 'service.name', 'log.level', 'message'],
+      sort: [{ name: '@timestamp', direction: 'desc' }],
+      view_mode: 'documents',
+      time_range: RECENT_TIME_RANGE,
     },
     {
       id: 'esql',
@@ -302,6 +357,7 @@ function buildTabs(dataViewId) {
         type: 'esql',
         query: `FROM ${LOGS_INDEX}* | WHERE log.level == "error" | LIMIT 100`,
       },
+      time_range: RECENT_TIME_RANGE,
     },
     {
       id: 'esql-group-by',
@@ -311,18 +367,28 @@ function buildTabs(dataViewId) {
         type: 'esql',
         query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY host.name, log.level | SORT count DESC`,
       },
+      time_range: RECENT_TIME_RANGE,
+    },
+    {
+      id: 'esql-view',
+      label: 'ES|QL View',
+      type: 'default',
+      data_source: { type: 'esql', query: `FROM ${ESQL_VIEW} | LIMIT 100` },
+      time_range: RECENT_TIME_RANGE,
     },
     {
       id: 'metrics-experience',
       label: 'Metrics Experience',
       type: 'default',
       data_source: { type: 'esql', query: `TS ${METRICS_INDEX}` },
+      time_range: RECENT_TIME_RANGE,
     },
     {
       id: 'traces-experience',
       label: 'Traces Experience',
       type: 'default',
       data_source: { type: 'esql', query: `FROM ${TRACES_INDEX_PATTERN} | LIMIT 100` },
+      time_range: RECENT_TIME_RANGE,
     },
     {
       id: 'patterns',
@@ -332,6 +398,7 @@ function buildTabs(dataViewId) {
         type: 'esql',
         query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY pattern = CATEGORIZE(message)`,
       },
+      time_range: RECENT_TIME_RANGE,
     },
     {
       id: 'change-point',
@@ -339,8 +406,9 @@ function buildTabs(dataViewId) {
       type: 'default',
       data_source: {
         type: 'esql',
-        query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY bucket = BUCKET(@timestamp, 50, "2025-01-01", "2026-12-31") | CHANGE_POINT count ON bucket`,
+        query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY bucket = BUCKET(@timestamp, 50, "${bucketStart}", "${bucketEnd}") | CHANGE_POINT count ON bucket`,
       },
+      time_range: RECENT_TIME_RANGE,
     },
     {
       id: 'data-sources',
@@ -350,6 +418,7 @@ function buildTabs(dataViewId) {
         type: 'esql',
         query: `FROM ${FEDERATION_DATASET} | LIMIT 10`,
       },
+      time_range: FEDERATION_TIME_RANGE,
     },
   ];
 }
@@ -361,17 +430,17 @@ function buildTabs(dataViewId) {
 // one - the discover_sessions upsert route's existence check isn't
 // space-scoped (a `search` object with the same ID in a different space
 // still 409s), unlike `GET`, which correctly respects space isolation.
-const discoverSessionId = (space) => `demo-discover-session-${space.id}`;
-const dashboardId = (space) => `demo-discover-dashboard-${space.id}`;
+const getDiscoverSessionId = (space) => `demo-discover-session-${space.id}`;
+const getDashboardId = (space) => `demo-discover-dashboard-${space.id}`;
 
 async function createDiscoverSession(space, dataViewId) {
   const body = {
     title: 'Discover Demo',
     description:
-      'Rich multi-tab Discover session: classic query, ES|QL, ES|QL group by, metrics experience, traces experience, patterns, change point, data sources.',
+      'Rich multi-tab Discover session: classic (saved + ad hoc data view), field statistics, ES|QL, ES|QL group by, ES|QL view, metrics experience, traces experience, patterns, change point, data sources.',
     tabs: buildTabs(dataViewId),
   };
-  const result = await kbnFetch(`/api/discover_sessions/${discoverSessionId(space)}`, {
+  const result = await kbnFetch(`/api/discover_sessions/${getDiscoverSessionId(space)}`, {
     method: 'PUT',
     space: space.id,
     internal: true,
@@ -392,8 +461,9 @@ async function createDashboard(space, sessionId) {
         config: { ref_id: sessionId },
       },
     ],
+    time_range: RECENT_TIME_RANGE,
   };
-  const result = await kbnFetch(`/api/dashboards/${dashboardId(space)}`, {
+  const result = await kbnFetch(`/api/dashboards/${getDashboardId(space)}`, {
     method: 'PUT',
     space: space.id,
     body,
@@ -405,12 +475,13 @@ async function main() {
   await seedLogsIndex();
   await seedMetricsIndex();
   await seedFederatedDataset();
+  await seedEsqlView();
 
   for (const space of SPACES) {
     await ensureSpace(space);
     const dataViewId = await ensureDataView(space);
-    const discoverSessionId = await createDiscoverSession(space, dataViewId);
-    await createDashboard(space, discoverSessionId);
+    const sessionId = await createDiscoverSession(space, dataViewId);
+    await createDashboard(space, sessionId);
   }
 
   log('Done.');
