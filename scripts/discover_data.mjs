@@ -354,6 +354,16 @@ function buildTabs(dataViewId) {
   ];
 }
 
+// Deterministic per-space IDs so automated tests can reference these saved
+// objects directly instead of having to look up a freshly-generated UUID.
+// PUT-by-id is an upsert, so re-running this script is also fully
+// idempotent. Note: these must be unique *across* spaces, not just within
+// one - the discover_sessions upsert route's existence check isn't
+// space-scoped (a `search` object with the same ID in a different space
+// still 409s), unlike `GET`, which correctly respects space isolation.
+const discoverSessionId = (space) => `demo-discover-session-${space.id}`;
+const dashboardId = (space) => `demo-discover-dashboard-${space.id}`;
+
 async function createDiscoverSession(space, dataViewId) {
   const body = {
     title: 'Discover Demo',
@@ -361,17 +371,17 @@ async function createDiscoverSession(space, dataViewId) {
       'Rich multi-tab Discover session: classic query, ES|QL, ES|QL group by, metrics experience, traces experience, patterns, change point, data sources.',
     tabs: buildTabs(dataViewId),
   };
-  const result = await kbnFetch('/api/discover_sessions', {
-    method: 'POST',
+  const result = await kbnFetch(`/api/discover_sessions/${discoverSessionId(space)}`, {
+    method: 'PUT',
     space: space.id,
     internal: true,
     body,
   });
-  log(`Created Discover session "${result.id}" in space "${space.id}".`);
+  log(`Upserted Discover session "${result.id}" in space "${space.id}".`);
   return result.id;
 }
 
-async function createDashboard(space, discoverSessionId) {
+async function createDashboard(space, sessionId) {
   const body = {
     title: 'Discover Demo Dashboard',
     description: 'A dashboard panel embedding the "Discover Demo" Discover session.',
@@ -379,16 +389,16 @@ async function createDashboard(space, discoverSessionId) {
       {
         type: 'discover_session',
         grid: { x: 0, y: 0, w: 48, h: 20 },
-        config: { ref_id: discoverSessionId },
+        config: { ref_id: sessionId },
       },
     ],
   };
-  const result = await kbnFetch('/api/dashboards', {
-    method: 'POST',
+  const result = await kbnFetch(`/api/dashboards/${dashboardId(space)}`, {
+    method: 'PUT',
     space: space.id,
     body,
   });
-  log(`Created dashboard "${result.id}" in space "${space.id}".`);
+  log(`Upserted dashboard "${result.id}" in space "${space.id}".`);
 }
 
 async function main() {
