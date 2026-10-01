@@ -4,8 +4,10 @@
  *  - a plain log index (classic / ES|QL / ES|QL group-by / patterns / change
  *    point tabs)
  *  - a TSDB metrics index (ES|QL "Metrics Experience" tab)
+ *  - an ES|QL Data Federation dataset over a public S3 bucket ("Data
+ *    Sources" tab)
  *  - four demo spaces, one per solution type (classic / oblt / security / es)
- *  - a rich, 7-tab Discover session created in every space, plus a dashboard
+ *  - a rich, 8-tab Discover session created in every space, plus a dashboard
  *    embedding that session
  *
  * Uses only Node's built-in fetch - no npm dependencies - so it can run
@@ -28,6 +30,11 @@ const AUTH_HEADER = 'Basic ' + Buffer.from(`${USERNAME}:${PASSWORD}`).toString('
 const LOGS_INDEX = 'demo-discover-logs';
 const METRICS_INDEX = 'demo-discover-metrics';
 const TRACES_INDEX_PATTERN = 'traces-apm*';
+
+// ES|QL Data Federation: a public, unauthenticated S3 dataset (AWS Open Data
+// Bitcoin blockchain) for the "Data Sources" tab.
+const FEDERATION_DATA_SOURCE = 'aws_open_data_us_east_2';
+const FEDERATION_DATASET = 'btc_blocks';
 
 const SPACES = [
   { id: 'demo-classic', name: 'Demo Classic', solution: 'classic' },
@@ -218,6 +225,30 @@ async function seedMetricsIndex() {
   log(`Seeded "${METRICS_INDEX}" with ${count} docs.`);
 }
 
+async function seedFederatedDataset() {
+  log(`Registering ES|QL Data Federation data source "${FEDERATION_DATA_SOURCE}"...`);
+  await esFetch(`/_query/data_source/${FEDERATION_DATA_SOURCE}`, {
+    method: 'PUT',
+    body: {
+      type: 's3',
+      description: 'Public AWS Open Data bucket, us-east-2',
+      settings: { auth: 'anonymous', region: 'us-east-2' },
+    },
+  });
+
+  log(`Registering ES|QL Data Federation dataset "${FEDERATION_DATASET}"...`);
+  await esFetch(`/_query/dataset/${FEDERATION_DATASET}`, {
+    method: 'PUT',
+    body: {
+      data_source: FEDERATION_DATA_SOURCE,
+      resource: 's3://aws-public-blockchain/v1.0/btc/blocks/date=2009-01-*/*.parquet',
+      description: 'Bitcoin blocks, Jan 2009',
+      settings: { format: 'parquet' },
+    },
+  });
+  log(`Seeded federated dataset "${FEDERATION_DATASET}".`);
+}
+
 async function ensureSpace(space) {
   const exists = await fetch(`${KIBANA_URL}${DEV_PREFIX}/api/spaces/space/${space.id}`, {
     headers: { Authorization: AUTH_HEADER, 'kbn-xsrf': 'true' },
@@ -311,6 +342,15 @@ function buildTabs(dataViewId) {
         query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY bucket = BUCKET(@timestamp, 50, "2025-01-01", "2026-12-31") | CHANGE_POINT count ON bucket`,
       },
     },
+    {
+      id: 'data-sources',
+      label: 'Data Sources',
+      type: 'default',
+      data_source: {
+        type: 'esql',
+        query: `FROM ${FEDERATION_DATASET} | LIMIT 10`,
+      },
+    },
   ];
 }
 
@@ -318,7 +358,7 @@ async function createDiscoverSession(space, dataViewId) {
   const body = {
     title: 'Discover Demo',
     description:
-      'Rich multi-tab Discover session: classic query, ES|QL, ES|QL group by, metrics experience, traces experience, patterns, change point.',
+      'Rich multi-tab Discover session: classic query, ES|QL, ES|QL group by, metrics experience, traces experience, patterns, change point, data sources.',
     tabs: buildTabs(dataViewId),
   };
   const result = await kbnFetch('/api/discover_sessions', {
@@ -354,6 +394,7 @@ async function createDashboard(space, discoverSessionId) {
 async function main() {
   await seedLogsIndex();
   await seedMetricsIndex();
+  await seedFederatedDataset();
 
   for (const space of SPACES) {
     await ensureSpace(space);
