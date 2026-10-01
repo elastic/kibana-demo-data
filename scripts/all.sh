@@ -47,7 +47,7 @@ search_string_in_args() {
     return 1
 }
 
-for script in "custom" "o11y" "sample" "security" "makelogs" "searchkit"; do
+for script in "custom" "o11y" "sample" "security" "makelogs" "searchkit" "discover"; do
     if search_string_in_args "$script" "$@"; then
         execute_script "$script"
     fi
