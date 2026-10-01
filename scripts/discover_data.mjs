@@ -85,7 +85,14 @@ async function esBulk(ndjsonLines) {
     headers: { Authorization: AUTH_HEADER, 'Content-Type': 'application/x-ndjson' },
     body: ndjsonLines.join('\n') + '\n',
   });
-  const json = await res.json();
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : undefined;
+  if (!res.ok) {
+    // A request-level failure (e.g. 403) returns a top-level `error` object
+    // with no `errors` field at all - checking only `json.errors` below
+    // would silently treat this as successful indexing.
+    throw new Error(`POST /_bulk -> ${res.status}: ${text}`);
+  }
   if (json.errors) {
     const firstError = json.items.find((item) => item.index?.error);
     throw new Error(`Bulk indexing had errors: ${JSON.stringify(firstError)}`);

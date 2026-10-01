@@ -31,6 +31,7 @@ if [ $# -eq 0 ]; then
    execute_script "sample"
    execute_script "security"
    execute_script "makelogs"
+   execute_script "discover"
    wait
    exit 0
 fi
