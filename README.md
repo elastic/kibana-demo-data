@@ -29,7 +29,7 @@ The script installs several demo data sets, each with an associated variable nam
 - **Searchkit Data** (`searchkit`)
 - **Metrics Sample Data** (`metrics`) - Uses [simian-forge](https://github.com/simianhacker/simian-forge) to generate host metrics data
 - **Edge Case Data** with 50,000 dynamically generated unique fields across 10 indices (5,000 unique fields each) and 10 test documents for testing massive field scenarios (`edgecase`)
-- **Discover Demo Data** (`discover`) - A rich, 5-tab Discover session (classic query, ES|QL, ES|QL group by, ES|QL metrics experience, traces experience) backed by real data, created in four demo spaces, one per solution type: `demo-classic` (classic), `demo-o11y` (oblt), `demo-security` (security), `demo-search` (es). The spaces are created only if they don't already exist. Requires a recent Kibana checkout (uses `node scripts/synthtrace` for traces data and the Discover session API).
+- **Discover Demo Data** (`discover`) - A rich, 7-tab Discover session (classic query, ES|QL, ES|QL group by, ES|QL metrics experience, traces experience, patterns, change point) plus a dashboard embedding that session, backed by real data, created in four demo spaces, one per solution type: `demo-classic` (classic), `demo-o11y` (oblt), `demo-security` (security), `demo-search` (es). The spaces are created only if they don't already exist. Requires a recent Kibana checkout (uses `node scripts/synthtrace` for traces data and the Discover session/Dashboard APIs).
 
 ## Installing Specific Data Sets
 

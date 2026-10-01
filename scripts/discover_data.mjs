@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /*
  * Seeds the "discover" demo dataset:
- *  - a plain log index (classic / ES|QL / ES|QL group-by tabs)
+ *  - a plain log index (classic / ES|QL / ES|QL group-by / patterns / change
+ *    point tabs)
  *  - a TSDB metrics index (ES|QL "Metrics Experience" tab)
  *  - four demo spaces, one per solution type (classic / oblt / security / es)
- *  - a rich, 5-tab Discover session created in every space
+ *  - a rich, 7-tab Discover session created in every space, plus a dashboard
+ *    embedding that session
  *
  * Uses only Node's built-in fetch - no npm dependencies - so it can run
  * standalone (downloaded alongside discover.sh) without needing a Kibana
@@ -291,6 +293,24 @@ function buildTabs(dataViewId) {
       type: 'default',
       data_source: { type: 'esql', query: `FROM ${TRACES_INDEX_PATTERN} | LIMIT 100` },
     },
+    {
+      id: 'patterns',
+      label: 'Patterns',
+      type: 'default',
+      data_source: {
+        type: 'esql',
+        query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY pattern = CATEGORIZE(message)`,
+      },
+    },
+    {
+      id: 'change-point',
+      label: 'Change Point',
+      type: 'default',
+      data_source: {
+        type: 'esql',
+        query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY bucket = BUCKET(@timestamp, 50, "2025-01-01", "2026-12-31") | CHANGE_POINT count ON bucket`,
+      },
+    },
   ];
 }
 
@@ -298,7 +318,7 @@ async function createDiscoverSession(space, dataViewId) {
   const body = {
     title: 'Discover Demo',
     description:
-      'Rich multi-tab Discover session: classic query, ES|QL, ES|QL group by, metrics experience, traces experience.',
+      'Rich multi-tab Discover session: classic query, ES|QL, ES|QL group by, metrics experience, traces experience, patterns, change point.',
     tabs: buildTabs(dataViewId),
   };
   const result = await kbnFetch('/api/discover_sessions', {
@@ -308,6 +328,27 @@ async function createDiscoverSession(space, dataViewId) {
     body,
   });
   log(`Created Discover session "${result.id}" in space "${space.id}".`);
+  return result.id;
+}
+
+async function createDashboard(space, discoverSessionId) {
+  const body = {
+    title: 'Discover Demo Dashboard',
+    description: 'A dashboard panel embedding the "Discover Demo" Discover session.',
+    panels: [
+      {
+        type: 'discover_session',
+        grid: { x: 0, y: 0, w: 48, h: 20 },
+        config: { ref_id: discoverSessionId },
+      },
+    ],
+  };
+  const result = await kbnFetch('/api/dashboards', {
+    method: 'POST',
+    space: space.id,
+    body,
+  });
+  log(`Created dashboard "${result.id}" in space "${space.id}".`);
 }
 
 async function main() {
@@ -317,7 +358,8 @@ async function main() {
   for (const space of SPACES) {
     await ensureSpace(space);
     const dataViewId = await ensureDataView(space);
-    await createDiscoverSession(space, dataViewId);
+    const discoverSessionId = await createDiscoverSession(space, dataViewId);
+    await createDashboard(space, discoverSessionId);
   }
 
   log('Done.');

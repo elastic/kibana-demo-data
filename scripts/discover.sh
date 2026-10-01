@@ -1,7 +1,8 @@
 #!/bin/sh
-# Installs the "discover" demo dataset: a rich, 5-tab Discover session
+# Installs the "discover" demo dataset: a rich, 7-tab Discover session
 # (classic query, ES|QL, ES|QL group by, ES|QL metrics experience, traces
-# experience) backed by real data, created in four demo spaces - one per
+# experience, patterns, change point) plus a dashboard embedding that
+# session, backed by real data, created in four demo spaces - one per
 # solution type:
 #   demo-classic (classic), demo-o11y (oblt), demo-security (security),
 #   demo-search (es)
