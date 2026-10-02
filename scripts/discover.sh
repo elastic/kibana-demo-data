@@ -40,7 +40,7 @@ while true; do
     # an absolute URL, so a dev-mode redirect like "/abc123" shows up as
     # "${KIBANA_URL}/abc123" here, not "/abc123" - strip our own base URL
     # back off to recover just the path.
-    redirect=$(curl -s -o /dev/null -w "%{redirect_url}" "${KIBANA_URL}")
+    redirect=$(curl -s -o /dev/null -w "%{redirect_url}" -u "${USERNAME}:${PASSWORD}" "${KIBANA_URL}")
     case "$redirect" in
       "${KIBANA_URL}"/*) dev_prefix="${redirect#"${KIBANA_URL}"}" ;;
     esac
@@ -51,7 +51,10 @@ done
 
 log "Seeding traces data via synthtrace (requires running from a Kibana checkout)..."
 if [ -f "scripts/synthtrace.js" ]; then
-  if ! node scripts/synthtrace logs_traces_hosts --from now-3h --to now --target "$(printf '%s' "$ES_URL" | sed "s#://#://${USERNAME}:${PASSWORD}@#")"; then
+  # Built via parameter expansion rather than sed, so a username/password
+  # containing sed metacharacters (&, \, #) can't corrupt the substitution.
+  synthtrace_target="${ES_URL%%://*}://${USERNAME}:${PASSWORD}@${ES_URL#*://}"
+  if ! node scripts/synthtrace logs_traces_hosts --from now-3h --to now --target "$synthtrace_target"; then
     log "ERROR: synthtrace failed to seed traces data. Aborting."
     exit 1
   fi
@@ -139,11 +142,10 @@ async function esFetch(path, { method = 'GET', body } = {}) {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  const json = text ? JSON.parse(text) : undefined;
   if (!res.ok) {
     throw new Error(`${method} ${path} -> ${res.status}: ${text}`);
   }
-  return json;
+  return text ? JSON.parse(text) : undefined;
 }
 
 async function esBulk(ndjsonLines) {
@@ -153,13 +155,13 @@ async function esBulk(ndjsonLines) {
     body: ndjsonLines.join('\n') + '\n',
   });
   const text = await res.text();
-  const json = text ? JSON.parse(text) : undefined;
   if (!res.ok) {
     // A request-level failure (e.g. 403) returns a top-level `error` object
     // with no `errors` field at all - checking only `json.errors` below
     // would silently treat this as successful indexing.
     throw new Error(`POST /_bulk -> ${res.status}: ${text}`);
   }
+  const json = text ? JSON.parse(text) : undefined;
   if (json.errors) {
     const firstError = json.items.find((item) => item.index?.error);
     throw new Error(`Bulk indexing had errors: ${JSON.stringify(firstError)}`);
@@ -192,11 +194,10 @@ async function kbnFetch(path, { method = 'GET', body, space, internal = false } 
   }
   const res = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   const text = await res.text();
-  const json = text ? JSON.parse(text) : undefined;
   if (!res.ok) {
     throw new Error(`${method} ${url} -> ${res.status}: ${text}`);
   }
-  return json;
+  return text ? JSON.parse(text) : undefined;
 }
 
 const HOSTS = ['web-01', 'web-02', 'web-03', 'api-01', 'api-02'];
@@ -346,12 +347,15 @@ async function seedEsqlView() {
 }
 
 async function ensureSpace(space) {
-  const exists = await fetch(`${KIBANA_URL}${DEV_PREFIX}/api/spaces/space/${space.id}`, {
+  const res = await fetch(`${KIBANA_URL}${DEV_PREFIX}/api/spaces/space/${space.id}`, {
     headers: { Authorization: AUTH_HEADER, 'kbn-xsrf': 'true' },
-  }).then((res) => res.ok);
-  if (exists) {
+  });
+  if (res.ok) {
     log(`Space "${space.id}" already exists.`);
     return;
+  }
+  if (res.status !== 404) {
+    throw new Error(`GET /api/spaces/space/${space.id} -> ${res.status}: ${await res.text()}`);
   }
   log(`Creating space "${space.id}" (solution: ${space.solution})...`);
   await kbnFetch('/api/spaces/space', {
