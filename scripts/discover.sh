@@ -116,10 +116,10 @@ const FEDERATION_DATASET = 'btc_blocks';
 // this script runs (the same assumption the rest of this repo's synthtrace
 // scenarios make).
 const RECENT_DATA_WINDOW_HOURS = 9;
-const RECENT_TIME_RANGE = { from: `now-${RECENT_DATA_WINDOW_HOURS}h`, to: 'now', mode: 'relative' };
+const RECENT_TIME_RANGE = { from: `now-${RECENT_DATA_WINDOW_HOURS}h`, to: 'now' };
 // The federated dataset is real historical data (Jan 2009), unrelated to
 // "now", so it needs its own fixed time range.
-const FEDERATION_TIME_RANGE = { from: '2009-01-01', to: '2009-02-01', mode: 'absolute' };
+const FEDERATION_TIME_RANGE = { from: '2009-01-01', to: '2009-02-01' };
 
 const SPACES = [
   { id: 'demo-classic', name: 'Demo Classic', solution: 'classic' },
