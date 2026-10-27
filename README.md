@@ -56,3 +56,41 @@ To install the **Discover Demo Data** (run from a Kibana checkout):
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s discover
 ```
+
+### Discover configuration
+
+The Discover installer is a standalone Node.js module (Node 18+, no npm
+dependencies). The shell script is a small launcher for the same module.
+Run either command from your Kibana checkout so synthtrace can seed traces:
+
+```bash
+node /path/to/kibana-demo-data/scripts/discover.mjs --es-url http://localhost:9200 --kibana-url http://localhost:5601
+sh /path/to/kibana-demo-data/scripts/discover.sh --skip-traces
+```
+
+Use `--help` to list options. Connection flags (`--es-url`, `--kibana-url`,
+`--username`, `--password`, `--dev-prefix`) override the corresponding
+`KIBANA_DEMO_ES_URL`, `KIBANA_DEMO_KIBANA_URL`, `KIBANA_DEMO_USERNAME`,
+`KIBANA_DEMO_PASSWORD`, and `KIBANA_DEMO_DEV_PREFIX` environment variables.
+Kibana's development base path is detected automatically unless supplied explicitly.
+`--skip-traces` skips synthtrace; the remaining data and saved objects are still created.
+
+Flags also work when piping the launcher to `sh`. Export environment variables
+before the pipeline so the installer inherits them:
+
+```bash
+export KIBANA_DEMO_PASSWORD=changeme
+curl -fsSL https://elastic.github.io/kibana-demo-data/scripts/discover.sh | sh -s -- --skip-traces
+```
+
+For a PR branch, point the launcher at the matching JavaScript source as well:
+
+```bash
+export KIBANA_DEMO_SCRIPTS_URL=https://raw.githubusercontent.com/elastic/kibana-demo-data/add-discover-demo-dataset/scripts
+curl -fsSL "$KIBANA_DEMO_SCRIPTS_URL/discover.sh" | sh -s -- --skip-traces
+```
+
+A local launcher uses its adjacent `discover.mjs`; a piped launcher downloads
+it to a temporary directory and removes it on exit. The top-level dataset selector
+(`sh -s discover`) continues to support environment variables; pass Discover-specific
+flags to `scripts/discover.sh` or `scripts/discover.mjs` directly.
