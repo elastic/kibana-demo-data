@@ -54,8 +54,8 @@ Environment variables are inherited when using discover.sh as well.`);
 
 const USERNAME = values.username ?? (process.env.KIBANA_DEMO_USERNAME || 'elastic');
 const PASSWORD = values.password ?? (process.env.KIBANA_DEMO_PASSWORD || 'changeme');
-const ES_URL = (values['es-url'] ?? (process.env.KIBANA_DEMO_ES_URL || 'http://localhost:9200')).replace(/\/$/, '');
-const KIBANA_URL = (values['kibana-url'] ?? (process.env.KIBANA_DEMO_KIBANA_URL || 'http://localhost:5601')).replace(/\/$/, '');
+const ES_URL = validateServiceUrl((values['es-url'] ?? (process.env.KIBANA_DEMO_ES_URL || 'http://localhost:9200')), 'Elasticsearch');
+const KIBANA_URL = validateServiceUrl((values['kibana-url'] ?? (process.env.KIBANA_DEMO_KIBANA_URL || 'http://localhost:5601')), 'Kibana');
 let DEV_PREFIX = values['dev-prefix'] ?? process.env.KIBANA_DEMO_DEV_PREFIX ?? '';
 
 const AUTH_HEADER = 'Basic ' + Buffer.from(`${USERNAME}:${PASSWORD}`).toString('base64');
@@ -91,6 +91,25 @@ const SPACES = [
 
 function log(message) {
   console.log(`[${new Date().toISOString()}][discover] - ${message}`);
+}
+
+function validateServiceUrl(value, service) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${service} URL must be an absolute HTTP(S) URL.`);
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new Error(`${service} URL must use HTTP(S) without credentials, query, or fragment. Use the username/password options instead.`);
+  }
+  return url.href.replace(/\/$/, '');
+}
+
+// API requests must stay on the configured endpoint. In particular, never
+// replay a write body at a redirect destination or downgrade HTTPS to HTTP.
+function apiFetch(url, options = {}) {
+  return fetch(url, { ...options, redirect: 'error' });
 }
 
 async function waitForServices() {
@@ -150,7 +169,7 @@ function seedTraces() {
 }
 
 async function esFetch(path, { method = 'GET', body } = {}) {
-  const res = await fetch(`${ES_URL}${path}`, {
+  const res = await apiFetch(`${ES_URL}${path}`, {
     method,
     headers: { Authorization: AUTH_HEADER, 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -163,7 +182,7 @@ async function esFetch(path, { method = 'GET', body } = {}) {
 }
 
 async function esBulk(ndjsonLines) {
-  const res = await fetch(`${ES_URL}/_bulk?refresh=true`, {
+  const res = await apiFetch(`${ES_URL}/_bulk?refresh=true`, {
     method: 'POST',
     headers: { Authorization: AUTH_HEADER, 'Content-Type': 'application/x-ndjson' },
     body: ndjsonLines.join('\n') + '\n',
@@ -185,10 +204,14 @@ async function esBulk(ndjsonLines) {
 
 async function recreateIndex(indexName, indexBody) {
   log(`Creating index "${indexName}"...`);
-  await fetch(`${ES_URL}/${indexName}`, {
+  const deleted = await apiFetch(`${ES_URL}/${indexName}`, {
     method: 'DELETE',
     headers: { Authorization: AUTH_HEADER },
-  }).catch(() => {});
+  });
+  if (!deleted.ok && deleted.status !== 404) {
+    throw new Error(`DELETE /${indexName} -> ${deleted.status}: ${await deleted.text()}`);
+  }
+  await deleted.body?.cancel();
   await esFetch(`/${indexName}`, { method: 'PUT', body: indexBody });
 }
 
@@ -201,7 +224,7 @@ async function kbnFetch(path, { method = 'GET', body, space } = {}) {
     'Content-Type': 'application/json',
     'elastic-api-version': '2023-10-31',
   };
-  const res = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+  const res = await apiFetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`${method} ${url} -> ${res.status}: ${text}`);
@@ -356,7 +379,7 @@ async function seedEsqlView() {
 }
 
 async function ensureSpace(space) {
-  const res = await fetch(`${KIBANA_URL}${DEV_PREFIX}/api/spaces/space/${space.id}`, {
+  const res = await apiFetch(`${KIBANA_URL}${DEV_PREFIX}/api/spaces/space/${space.id}`, {
     headers: { Authorization: AUTH_HEADER, 'kbn-xsrf': 'true' },
   });
   if (res.ok) {

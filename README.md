@@ -95,3 +95,25 @@ it directly into Node without saving a JavaScript file. The streaming launcher
 requires Bash to propagate failures from either curl or Node. The top-level dataset selector
 (`sh -s discover`) continues to support environment variables; pass Discover-specific
 flags to `scripts/discover.sh` or `scripts/discover.mjs` directly.
+
+### Discover security and verification
+
+The streaming launcher executes remote code with your user's permissions. Use a
+trusted HTTPS source for `KIBANA_DEMO_SCRIPTS_URL`; for reproducible runs, replace
+the branch in the raw GitHub URL with a reviewed commit SHA. The launcher only
+accepts HTTPS for the module and its redirects. This does not verify a signature
+or checksum, and the initial `curl ... | sh` command is still a separate trust step.
+
+Use a development cluster: the installer recreates `demo-discover-logs` and
+`demo-discover-metrics` and updates the named demo objects. Use HTTPS for remote
+Elasticsearch/Kibana connections; the HTTP defaults are for localhost development.
+Pass credentials through environment variables to avoid shell history. When traces
+are enabled, synthtrace still receives credentials in its `--target` argument,
+which may be visible to local process inspection; use `--skip-traces` on shared
+machines when that exposure is unacceptable.
+
+Run the installer regression checks without contacting a cluster:
+
+```bash
+node --test scripts/discover.test.mjs
+```
