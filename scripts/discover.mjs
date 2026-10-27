@@ -192,20 +192,15 @@ async function recreateIndex(indexName, indexBody) {
   await esFetch(`/${indexName}`, { method: 'PUT', body: indexBody });
 }
 
-async function kbnFetch(path, { method = 'GET', body, space, internal = false } = {}) {
+async function kbnFetch(path, { method = 'GET', body, space } = {}) {
   const spacePrefix = space ? `/s/${space}` : '';
   const url = `${KIBANA_URL}${DEV_PREFIX}${spacePrefix}${path}`;
   const headers = {
     Authorization: AUTH_HEADER,
     'kbn-xsrf': 'true',
     'Content-Type': 'application/json',
+    'elastic-api-version': '2023-10-31',
   };
-  if (internal) {
-    headers['elastic-api-version'] = '1';
-    headers['x-elastic-internal-origin'] = 'Kibana';
-  } else {
-    headers['elastic-api-version'] = '2023-10-31';
-  }
   const res = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   const text = await res.text();
   if (!res.ok) {
@@ -535,7 +530,6 @@ async function createDiscoverSession(space, dataViewId) {
   const result = await kbnFetch(`/api/discover_sessions/${getDiscoverSessionId(space)}`, {
     method: 'PUT',
     space: space.id,
-    internal: true,
     body,
   });
   log(`Upserted Discover session "${result.id}" in space "${space.id}".`);
