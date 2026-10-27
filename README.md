@@ -90,7 +90,8 @@ export KIBANA_DEMO_SCRIPTS_URL=https://raw.githubusercontent.com/elastic/kibana-
 curl -fsSL "$KIBANA_DEMO_SCRIPTS_URL/discover.sh" | sh -s -- --skip-traces
 ```
 
-A local launcher uses its adjacent `discover.mjs`; a piped launcher downloads
-it to a temporary directory and removes it on exit. The top-level dataset selector
+A local launcher uses its adjacent `discover.mjs`; a piped launcher streams
+it directly into Node without saving a JavaScript file. The streaming launcher
+requires Bash to propagate failures from either curl or Node. The top-level dataset selector
 (`sh -s discover`) continues to support environment variables; pass Discover-specific
 flags to `scripts/discover.sh` or `scripts/discover.mjs` directly.
