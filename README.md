@@ -29,11 +29,11 @@ The script installs several demo data sets, each with an associated variable nam
 - **Searchkit Data** (`searchkit`)
 - **Metrics Sample Data** (`metrics`) - Uses [simian-forge](https://github.com/simianhacker/simian-forge) to generate host metrics data
 - **Edge Case Data** with 50,000 dynamically generated unique fields across 10 indices (5,000 unique fields each) and 10 test documents for testing massive field scenarios (`edgecase`)
-
+- **Discover Demo Data** (`discover`) - A rich, 11-tab Discover session (classic, classic ad hoc data view, field statistics, ES|QL, ES|QL group by, ES|QL view, metrics experience, traces experience, patterns, change point, data sources) plus a dashboard embedding that session, backed by real data, created in four demo spaces, one per solution type: `demo-classic` (classic), `demo-o11y` (oblt), `demo-security` (security), `demo-search` (es). The "Data Sources" tab queries a real public dataset (AWS Open Data Bitcoin blockchain, in S3) registered via ES|QL Data Federation; the "ES|QL View" tab queries a reusable named ES|QL view. Every tab and the dashboard store an explicit time range, so they reliably show data regardless of the viewer's default time range. The spaces are created only if they don't already exist, and the Discover session/dashboard IDs are deterministic (`demo-discover-session-<space-id>` / `demo-discover-dashboard-<space-id>`) so automated tests can reference them directly and re-running the script is idempotent. Requires a recent Kibana checkout (uses `node scripts/synthtrace` for traces data and the Discover session/Dashboard APIs), and an Elasticsearch version with ES|QL Data Federation and view support.
 
 ## Installing Specific Data Sets
 
-If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`,  `metrics` or `edgecase`):
+If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`,  `metrics`, `edgecase` or `discover`):
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s <data_set>
@@ -49,4 +49,71 @@ To install **Edge Case Data** with 50,000 dynamically generated unique fields ac
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s edgecase
+```
+
+To install the **Discover Demo Data** (run from a Kibana checkout):
+
+```bash
+curl -sSL https://elastic.github.io/kibana-demo-data | sh -s discover
+```
+
+### Discover configuration
+
+The Discover installer is a standalone Node.js module (Node 18+, no npm
+dependencies). The shell script is a small launcher for the same module.
+Run either command from your Kibana checkout so synthtrace can seed traces:
+
+```bash
+node /path/to/kibana-demo-data/scripts/discover.mjs --es-url http://localhost:9200 --kibana-url http://localhost:5601
+sh /path/to/kibana-demo-data/scripts/discover.sh --skip-traces
+```
+
+Use `--help` to list options. Connection flags (`--es-url`, `--kibana-url`,
+`--username`, `--password`, `--dev-prefix`) override the corresponding
+`KIBANA_DEMO_ES_URL`, `KIBANA_DEMO_KIBANA_URL`, `KIBANA_DEMO_USERNAME`,
+`KIBANA_DEMO_PASSWORD`, and `KIBANA_DEMO_DEV_PREFIX` environment variables.
+Kibana's development base path is detected automatically unless supplied explicitly.
+`--skip-traces` skips synthtrace; the remaining data and saved objects are still created.
+
+Flags also work when piping the launcher to `sh`. Export environment variables
+before the pipeline so the installer inherits them:
+
+```bash
+export KIBANA_DEMO_PASSWORD=changeme
+curl -fsSL https://elastic.github.io/kibana-demo-data/scripts/discover.sh | sh -s -- --skip-traces
+```
+
+For a PR branch, point the launcher at the matching JavaScript source as well:
+
+```bash
+export KIBANA_DEMO_SCRIPTS_URL=https://raw.githubusercontent.com/elastic/kibana-demo-data/add-discover-demo-dataset/scripts
+curl -fsSL "$KIBANA_DEMO_SCRIPTS_URL/discover.sh" | sh -s -- --skip-traces
+```
+
+A local launcher uses its adjacent `discover.mjs`; a piped launcher streams
+it directly into Node without saving a JavaScript file. The streaming launcher
+requires Bash to propagate failures from either curl or Node. The top-level dataset selector
+(`sh -s discover`) continues to support environment variables; pass Discover-specific
+flags to `scripts/discover.sh` or `scripts/discover.mjs` directly.
+
+### Discover security and verification
+
+The streaming launcher executes remote code with your user's permissions. Use a
+trusted HTTPS source for `KIBANA_DEMO_SCRIPTS_URL`; for reproducible runs, replace
+the branch in the raw GitHub URL with a reviewed commit SHA. The launcher only
+accepts HTTPS for the module and its redirects. This does not verify a signature
+or checksum, and the initial `curl ... | sh` command is still a separate trust step.
+
+Use a development cluster: the installer recreates `demo-discover-logs` and
+`demo-discover-metrics` and updates the named demo objects. Use HTTPS for remote
+Elasticsearch/Kibana connections; the HTTP defaults are for localhost development.
+Pass credentials through environment variables to avoid shell history. When traces
+are enabled, synthtrace still receives credentials in its `--target` argument,
+which may be visible to local process inspection; use `--skip-traces` on shared
+machines when that exposure is unacceptable.
+
+Run the installer regression checks without contacting a cluster:
+
+```bash
+node --test scripts/discover.test.mjs
 ```
