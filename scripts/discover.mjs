@@ -127,7 +127,13 @@ async function waitForServices() {
     if (location) {
       const redirect = new URL(location, KIBANA_URL).href;
       if (redirect.startsWith(`${KIBANA_URL}/`)) {
-        DEV_PREFIX = redirect.slice(KIBANA_URL.length).replace(/\/$/, '');
+        const candidatePrefix = redirect.slice(KIBANA_URL.length).replace(/\/$/, '');
+        const statusResponse = await fetch(`${KIBANA_URL}${candidatePrefix}/api/status`, {
+          headers: { Authorization: AUTH_HEADER },
+          redirect: 'manual',
+        });
+        await statusResponse.body?.cancel();
+        if (statusResponse.status === 200) DEV_PREFIX = candidatePrefix;
       }
     }
   });
