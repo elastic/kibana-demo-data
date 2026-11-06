@@ -78,6 +78,11 @@ const FEDERATION_DATASET = 'btc_blocks';
 // scenarios make).
 const RECENT_DATA_WINDOW_HOURS = 9;
 const RECENT_TIME_RANGE = { from: `now-${RECENT_DATA_WINDOW_HOURS}h`, to: 'now' };
+const LOG_BUCKET_COUNT = 100;
+const LOG_BUCKET_INTERVAL_MS = 5 * 60 * 1000;
+const LOGS_END = Math.floor(Date.now() / LOG_BUCKET_INTERVAL_MS) * LOG_BUCKET_INTERVAL_MS;
+const LOGS_START = LOGS_END - LOG_BUCKET_COUNT * LOG_BUCKET_INTERVAL_MS;
+const LOGS_TIME_RANGE = { from: new Date(LOGS_START).toISOString(), to: new Date(LOGS_END).toISOString() };
 // The federated dataset is real historical data (Jan 2009), unrelated to
 // "now", so it needs its own fixed time range.
 const FEDERATION_TIME_RANGE = { from: '2009-01-01', to: '2009-02-01' };
@@ -264,23 +269,27 @@ async function seedLogsIndex() {
     },
   });
 
-  const now = Date.now();
-  const count = 2000;
   const lines = [];
-  for (let i = 0; i < count; i++) {
-    const level = LEVELS[i % LEVELS.length];
-    const doc = {
-      '@timestamp': new Date(now - (count - i) * 15_000).toISOString(),
-      'host.name': HOSTS[i % HOSTS.length],
-      'service.name': SERVICES[i % SERVICES.length],
-      'log.level': level,
-      message: MESSAGES[level],
-      response_time_ms: (i * 37) % 2000,
-      bytes: (i * 2003) % 50000,
-      'url.path': PATHS[i % PATHS.length],
-    };
-    lines.push(JSON.stringify({ index: { _index: LOGS_INDEX } }), JSON.stringify(doc));
+  for (let bucket = 0; bucket < LOG_BUCKET_COUNT; bucket++) {
+    const requests = (bucket < LOG_BUCKET_COUNT / 2 ? 10 : 40) + bucket % 5 - 2;
+    for (let request = 0; request < requests; request++) {
+      const documentIndex = lines.length / 2;
+      const level = LEVELS[documentIndex % LEVELS.length];
+      const doc = {
+        '@timestamp': new Date(LOGS_START + bucket * LOG_BUCKET_INTERVAL_MS
+          + Math.floor((request + 0.5) * LOG_BUCKET_INTERVAL_MS / requests)).toISOString(),
+        'host.name': HOSTS[documentIndex % HOSTS.length],
+        'service.name': SERVICES[documentIndex % SERVICES.length],
+        'log.level': level,
+        message: MESSAGES[level],
+        response_time_ms: (documentIndex * 37) % 2000,
+        bytes: (documentIndex * 2003) % 50000,
+        'url.path': PATHS[documentIndex % PATHS.length],
+      };
+      lines.push(JSON.stringify({ index: { _index: LOGS_INDEX } }), JSON.stringify(doc));
+    }
   }
+  const count = lines.length / 2;
   log(`Indexing ${count} log documents...`);
   await esBulk(lines);
   log(`Seeded "${LOGS_INDEX}" with ${count} docs.`);
@@ -420,11 +429,6 @@ async function ensureDataView(space) {
 }
 
 function buildTabs(dataViewId) {
-  // Real, computed bounds for the Change Point bucket, matching the window
-  // the logs data actually lives in - not a hardcoded, year-specific guess.
-  const bucketEnd = new Date().toISOString();
-  const bucketStart = new Date(Date.now() - RECENT_DATA_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
-
   return [
     {
       id: 'classic',
@@ -522,9 +526,9 @@ function buildTabs(dataViewId) {
       type: 'default',
       data_source: {
         type: 'esql',
-        query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY bucket = BUCKET(@timestamp, 50, "${bucketStart}", "${bucketEnd}") | CHANGE_POINT count ON bucket`,
+        query: `FROM ${LOGS_INDEX}* | WHERE @timestamp >= TO_DATETIME("${LOGS_TIME_RANGE.from}") AND @timestamp < TO_DATETIME("${LOGS_TIME_RANGE.to}") | STATS count = COUNT(*) BY bucket = BUCKET(@timestamp, 5 minutes) | SORT bucket ASC | CHANGE_POINT count ON bucket`,
       },
-      time_range: RECENT_TIME_RANGE,
+      time_range: LOGS_TIME_RANGE,
     },
     {
       id: 'data-sources',

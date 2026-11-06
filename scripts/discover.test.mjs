@@ -11,7 +11,7 @@ const launcher = readFileSync(new URL('./discover.sh', import.meta.url), 'utf8')
 function load(fetch) {
   // Exercise the actual helpers without starting an installation or contacting services.
   const body = source.replace(/^#!.*\n/, '').replace(/^import .*;\n/gm, '').split('main().catch')[0];
-  return runInNewContext(body + '\n({ validateServiceUrl, esFetch, esBulk, kbnFetch, recreateIndex, seedTraces, waitForServices })', {
+  return runInNewContext(body + '\n({ validateServiceUrl, esFetch, esBulk, kbnFetch, recreateIndex, seedTraces, waitForServices, seedLogsIndex, buildTabs })', {
     parseArgs: () => ({ values: {} }), process: { env: {}, execPath: process.execPath },
     URL, Buffer, console: { log() {} }, fetch,
     delay: async () => {}, existsSync: () => true,
@@ -67,6 +67,42 @@ test('readiness discovers a same-origin development prefix', async () => {
   });
   await api.waitForServices();
   assert.equal(urls.at(-1), 'http://localhost:5601/abc123/api/status');
+});
+
+test('change-point demo has 100 ordered five-minute buckets with a sustained traffic increase', async () => {
+  const documents = [];
+  const api = load(async (url, options) => {
+    if (url.includes('/_bulk')) {
+      const lines = options.body.trim().split('\n');
+      for (let line = 1; line < lines.length; line += 2) documents.push(JSON.parse(lines[line]));
+    }
+    return new Response('{"errors":false}');
+  });
+  await api.seedLogsIndex();
+  const tab = api.buildTabs('logs-view').find(tab => tab.id === 'change-point');
+  const start = Date.parse(tab.time_range.from);
+  const end = Date.parse(tab.time_range.to);
+  const interval = 5 * 60 * 1000;
+  assert.equal(end - start, 100 * interval);
+  assert.equal(start % interval, 0);
+  assert.equal(documents.length, 2500);
+  const counts = Array(100).fill(0);
+  for (const document of documents) {
+    const timestamp = Date.parse(document['@timestamp']);
+    assert.ok(timestamp >= start && timestamp < end);
+    counts[Math.floor((timestamp - start) / interval)]++;
+  }
+  for (let bucket = 0; bucket < counts.length; bucket++) {
+    assert.equal(counts[bucket], (bucket < 50 ? 10 : 40) + bucket % 5 - 2);
+  }
+  assert.ok(start >= Date.now() - 9 * 60 * 60 * 1000);
+  assert.ok(end <= Date.now());
+  assert.ok(tab.data_source.query.includes(`@timestamp >= TO_DATETIME("${tab.time_range.from}")`));
+  assert.ok(tab.data_source.query.includes(`@timestamp < TO_DATETIME("${tab.time_range.to}")`));
+  assert.match(tab.data_source.query, /BUCKET\(@timestamp, 5 minutes\) \| SORT bucket ASC \| CHANGE_POINT count ON bucket$/);
+  for (const tabSet of [api.buildTabs('first-space'), api.buildTabs('second-space')]) {
+    assert.equal(tabSet.find(tab => tab.id === 'change-point').data_source.query, tab.data_source.query);
+  }
 });
 
 test('piped launcher ignores cwd module, forwards flags and env, and propagates failures', () => {

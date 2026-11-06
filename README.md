@@ -75,6 +75,12 @@ Use `--help` to list options. Connection flags (`--es-url`, `--kibana-url`,
 Kibana's development base path is detected automatically unless supplied explicitly.
 `--skip-traces` skips synthtrace; the remaining data and saved objects are still created.
 
+The Change Point tab uses 100 five-minute buckets of log traffic, with a sustained
+increase from roughly 10 to 40 requests per bucket halfway through the series.
+Its query sorts the buckets chronologically and uses a fixed time range matching
+the seeded logs, so the change remains visible when the session is reopened later.
+Re-run the installer to refresh existing demo data and saved tabs.
+
 Flags also work when piping the launcher to `sh`. Export environment variables
 before the pipeline so the installer inherits them:
 
