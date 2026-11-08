@@ -20,7 +20,7 @@
  */
 
 import { parseArgs } from 'node:util';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -32,7 +32,6 @@ const { values } = parseArgs({
     password: { type: 'string' },
     'dev-prefix': { type: 'string' },
     'skip-traces': { type: 'boolean', default: false },
-    'tabs-config': { type: 'string' },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
@@ -47,9 +46,6 @@ Options (flags override environment variables):
   --password PASS   KIBANA_DEMO_PASSWORD    (changeme)
   --dev-prefix PATH KIBANA_DEMO_DEV_PREFIX  (auto-detected if unset)
   --skip-traces      Skip synthtrace (otherwise run from a Kibana checkout)
-  --tabs-config JSON KIBANA_DEMO_TABS_CONFIG  Rename or skip tabs: inline JSON or a file path, e.g.
-                     '[{"index":0,"label":"Errors"},{"index":3,"skip":true}]'
-                     (index = 0-based position in the default tab order)
   -h, --help        Show this help
 
 Environment variables are inherited when using discover.sh as well.`);
@@ -61,8 +57,6 @@ const PASSWORD = values.password ?? (process.env.KIBANA_DEMO_PASSWORD || 'change
 const ES_URL = validateServiceUrl((values['es-url'] ?? (process.env.KIBANA_DEMO_ES_URL || 'http://localhost:9200')), 'Elasticsearch');
 const KIBANA_URL = validateServiceUrl((values['kibana-url'] ?? (process.env.KIBANA_DEMO_KIBANA_URL || 'http://localhost:5601')), 'Kibana');
 let DEV_PREFIX = values['dev-prefix'] ?? process.env.KIBANA_DEMO_DEV_PREFIX ?? '';
-
-const TABS_CONFIG = loadTabsConfig(values['tabs-config'] ?? process.env.KIBANA_DEMO_TABS_CONFIG);
 
 const AUTH_HEADER = 'Basic ' + Buffer.from(`${USERNAME}:${PASSWORD}`).toString('base64');
 
@@ -434,47 +428,6 @@ async function ensureDataView(space) {
   }
 }
 
-// Parses --tabs-config: inline JSON or a path to a JSON file containing
-// [{ "index": 0, "label": "New name" }, { "index": 3, "skip": true }].
-function loadTabsConfig(raw) {
-  if (!raw) return [];
-  const text = /^\s*[[{]/.test(raw) ? raw : readFileSync(raw, 'utf8');
-  let config;
-  try {
-    config = JSON.parse(text);
-  } catch (error) {
-    throw new Error(`Invalid tabs config JSON: ${error.message}`);
-  }
-  if (!Array.isArray(config)) throw new Error('Tabs config must be a JSON array of { index, label?, skip? }.');
-  return config;
-}
-
-// Applies the config to the default tabs. Indexes refer to the default order,
-// so renaming and skipping can be combined without indexes shifting.
-function applyTabsConfig(tabs, config) {
-  const seen = new Set();
-  for (const entry of config) {
-    const { index, label, skip } = entry ?? {};
-    if (!Number.isInteger(index) || index < 0 || index >= tabs.length) {
-      throw new Error(`Tabs config: index must be an integer from 0 to ${tabs.length - 1}, got ${JSON.stringify(index)}.`);
-    }
-    if (seen.has(index)) throw new Error(`Tabs config: duplicate index ${index}.`);
-    seen.add(index);
-    if (label !== undefined && (typeof label !== 'string' || !label.trim())) {
-      throw new Error(`Tabs config: label for index ${index} must be a non-empty string.`);
-    }
-    if (skip !== undefined && typeof skip !== 'boolean') {
-      throw new Error(`Tabs config: skip for index ${index} must be a boolean.`);
-    }
-  }
-  const byIndex = new Map(config.map((entry) => [entry.index, entry]));
-  const result = tabs
-    .map((tab, index) => ({ ...tab, ...(byIndex.get(index)?.label ? { label: byIndex.get(index).label } : {}) }))
-    .filter((_, index) => !byIndex.get(index)?.skip);
-  if (!result.length) throw new Error('Tabs config skips every tab; a Discover session needs at least one.');
-  return result;
-}
-
 function buildTabs(dataViewId) {
   return [
     {
@@ -605,7 +558,7 @@ async function createDiscoverSession(space, dataViewId) {
     title: 'Discover Demo',
     description:
       'Rich multi-tab Discover session: classic (saved + ad hoc data view), field statistics, ES|QL, ES|QL group by, ES|QL view, metrics experience, traces experience, patterns, change point, data sources.',
-    tabs: applyTabsConfig(buildTabs(dataViewId), TABS_CONFIG),
+    tabs: buildTabs(dataViewId),
   };
   const result = await kbnFetch(`/api/discover_sessions/${getDiscoverSessionId(space)}`, {
     method: 'PUT',

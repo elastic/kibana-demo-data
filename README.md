@@ -125,16 +125,6 @@ requires Bash to propagate failures from either curl or Node. The top-level data
 (`sh -s discover`) continues to support environment variables; pass Discover-specific
 flags to `scripts/discover.sh` or `scripts/discover.mjs` directly.
 
-### Renaming and skipping tabs
-
-Pass `--tabs-config` (or set `KIBANA_DEMO_TABS_CONFIG`) with inline JSON or a path to a JSON file. `index` is the 0-based position in the default tab order (`0` Classic, `1` Field Statistics, `2` Classic (Ad Hoc), `3` ES|QL, `4` ES|QL Group By, `5` ES|QL View, `6` Metrics Experience, `7` Traces Experience, `8` Patterns, `9` Change Point, `10` Data Sources). Indexes always refer to the default order, so renaming and skipping can be combined.
-
-```bash
-sh scripts/discover.sh --tabs-config '[{"index":0,"label":"Errors"},{"index":8,"skip":true},{"index":10,"skip":true}]'
-```
-
-Each entry takes `index` (required), `label` (new display name) and `skip` (`true` to drop the tab). Invalid indexes, duplicate indexes, empty labels, or skipping every tab abort before anything is created.
-
 ### Discover security and verification
 
 The streaming launcher executes remote code with your user's permissions. Use a

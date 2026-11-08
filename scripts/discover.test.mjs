@@ -11,10 +11,10 @@ const launcher = readFileSync(new URL('./discover.sh', import.meta.url), 'utf8')
 function load(fetch) {
   // Exercise the actual helpers without starting an installation or contacting services.
   const body = source.replace(/^#!.*\n/, '').replace(/^import .*;\n/gm, '').split('main().catch')[0];
-  return runInNewContext(body + '\n({ validateServiceUrl, esFetch, esBulk, kbnFetch, recreateIndex, seedTraces, waitForServices, seedLogsIndex, buildTabs, applyTabsConfig, loadTabsConfig })', {
+  return runInNewContext(body + '\n({ validateServiceUrl, esFetch, esBulk, kbnFetch, recreateIndex, seedTraces, waitForServices, seedLogsIndex, buildTabs })', {
     parseArgs: () => ({ values: {} }), process: { env: {}, execPath: process.execPath },
     URL, Buffer, console: { log() {} }, fetch,
-    delay: async () => {}, existsSync: () => true, readFileSync,
+    delay: async () => {}, existsSync: () => true,
     spawnSync: () => ({ status: 1 }),
   });
 }
@@ -138,25 +138,4 @@ test('default local dataset selection includes Discover', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test('tabs config renames and skips tabs by default-order index', () => {
-  const api = load();
-  const tabs = api.buildTabs('dv');
-  const result = api.applyTabsConfig(tabs, api.loadTabsConfig('[{"index":0,"label":"Errors"},{"index":1,"skip":true}]'));
-  assert.equal(result.length, tabs.length - 1);
-  assert.equal(result[0].label, 'Errors');
-  assert.equal(result[0].id, tabs[0].id);
-  assert.ok(!result.some((tab) => tab.id === tabs[1].id));
-  assert.equal(api.applyTabsConfig(tabs, []).length, tabs.length);
-});
-
-test('tabs config rejects invalid input', () => {
-  const api = load();
-  const tabs = api.buildTabs('dv');
-  for (const config of [[{ index: 99 }], [{ index: 0 }, { index: 0 }], [{ index: 0, label: '' }], [{ index: 0, skip: 'yes' }], tabs.map((_, index) => ({ index, skip: true }))]) {
-    assert.throws(() => api.applyTabsConfig(tabs, config));
-  }
-  assert.throws(() => api.loadTabsConfig('{"index":0}'));
-  assert.throws(() => api.loadTabsConfig('[not json'));
 });
