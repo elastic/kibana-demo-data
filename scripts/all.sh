@@ -13,14 +13,32 @@ cleanup() {
 # Trap SIGINT (Ctrl-C) and call the cleanup function
 trap cleanup 2
 
+jobs_started=""
 execute_script() {
     script_path="${script_dir}/$1.sh"
     echo "Executing $script_path"
     if [ -e "$script_path" ]; then
        sh "$script_path" &
+       # Remember "pid:name" so wait_all can report which script failed.
+       jobs_started="$jobs_started $!:$1"
     else
-        echo "Error: $script_path is not executable. Skipping."
+        echo "Error: $script_path not found. Skipping."
     fi
+}
+
+# Wait for every started script; a bare `wait` would discard their exit codes.
+wait_all() {
+    failed=""
+    for job in $jobs_started; do
+        if ! wait "${job%%:*}"; then
+            failed="$failed ${job#*:}"
+        fi
+    done
+    if [ -n "$failed" ]; then
+        echo "Finished with failures:$failed"
+        return 1
+    fi
+    return 0
 }
 
 if [ $# -eq 0 ]; then
@@ -32,8 +50,8 @@ if [ $# -eq 0 ]; then
    execute_script "security"
    execute_script "makelogs"
    execute_script "discover"
-   wait
-   exit 0
+   wait_all
+   exit $?
 fi
 
 # Function to search for a string in the array of arguments
@@ -55,5 +73,5 @@ for script in "custom" "o11y" "sample" "security" "makelogs" "searchkit" "discov
 done
 
 # Wait for all background processes to finish
-wait;
-
+wait_all
+exit $?

@@ -26,13 +26,29 @@ done
 
 echo "Kibana is now online!"
 # Install sample data using curl
-echo "Installing sample data"
-echo "Install logs"
-curl -u "${username}:${password}" -X POST "${kibana_url}${dev_prefix}/api/sample_data/logs" -s -o /dev/null -H 'kbn-xsrf: true' -H 'elastic-api-version: internal' -H 'Content-Type: application/json' 2>&1
-echo "Install ecommerce"
-curl -u "${username}:${password}" -X POST "${kibana_url}${dev_prefix}/api/sample_data/ecommerce" -s -o /dev/null -H 'kbn-xsrf: true' -H 'elastic-api-version: internal' -H 'Content-Type: application/json' 2>&1
-echo "Install flights"
-curl -u "${username}:${password}" -X POST "${kibana_url}${dev_prefix}/api/sample_data/flights" -s -o /dev/null -H 'kbn-xsrf: true' -H 'elastic-api-version: internal' -H 'Content-Type: application/json' 2>&1
-echo "Install logstsdb"
-curl -u "${username}:${password}" -X POST "${kibana_url}${dev_prefix}/api/sample_data/logstsdb" -s -o /dev/null -H 'kbn-xsrf: true' -H 'elastic-api-version: internal' -H 'Content-Type: application/json' 2>&1
-echo "Sample data installed finished!"
+# These are internal Kibana routes: they are rejected with a 400 unless the
+# x-elastic-internal-origin header is sent.
+failed=0
+install_sample() {
+    echo "Install $1"
+    body=$(mktemp)
+    status=$(curl -s -o "$body" -w "%{http_code}" -u "${username}:${password}" -X POST \
+        "${kibana_url}${dev_prefix}/api/sample_data/$1" \
+        -H 'kbn-xsrf: true' -H 'x-elastic-internal-origin: Kibana' -H 'Content-Type: application/json')
+    if [ "$status" != "200" ]; then
+        echo "  FAILED ($1): HTTP $status $(cat "$body")"
+        failed=1
+    fi
+    rm -f "$body"
+}
+
+install_sample logs
+install_sample ecommerce
+install_sample flights
+install_sample logstsdb
+
+if [ "$failed" -ne 0 ]; then
+    echo "Sample data installation finished with errors!"
+    exit 1
+fi
+echo "Sample data installation finished!"

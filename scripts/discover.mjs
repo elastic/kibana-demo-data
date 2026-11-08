@@ -485,7 +485,7 @@ function buildTabs(dataViewId) {
       type: 'default',
       data_source: {
         type: 'esql',
-        query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY host.name, log.level | SORT count DESC`,
+        query: `FROM ${LOGS_INDEX}* | STATS count = COUNT(*) BY host.name | SORT count DESC`,
       },
       time_range: RECENT_TIME_RANGE,
     },
