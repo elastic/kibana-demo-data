@@ -28,7 +28,7 @@ process_fixture() {
   local DATA_FILE_PATH="$FIXTURE_PATH/data.json.gz"
 
   #echo "$FIXTURE_PATH - delete index"
-  #celasticsearch_url -s -u elastic:changeme -X DELETE "localhost:9200/testhuge" -H 'Content-Type: application/json' > /dev/null 2>&1
+  #curl -s -u elastic:changeme -X DELETE "localhost:9200/testhuge" -H 'Content-Type: application/json' > /dev/null 2>&1
 
   echo "$FIXTURE_PATH - process mappings"
 
@@ -47,7 +47,7 @@ process_fixture() {
     exit 1
   fi
 
-  celasticsearch_url -s -u elastic:changeme -X PUT "localhost:9200/$FIXTURE_NAME" -H 'Content-Type: application/json' -d "$MODIFIED_JSON" > /dev/null 2>&1
+  curl -s -u elastic:changeme -X PUT "localhost:9200/$FIXTURE_NAME" -H 'Content-Type: application/json' -d "$MODIFIED_JSON" > /dev/null 2>&1
 
   echo "$FIXTURE_PATH - process data"
   gunzip -c "$DATA_FILE_PATH" | jq -c --slurp '.[]' | while IFS= read -r block; do
@@ -63,7 +63,7 @@ process_fixture() {
 
       # Post the modified payload to Elasticsearch
       if [[ "$type" == "doc" ]]; then
-        celasticsearch_url -u custom_kibana_user:changeme -X POST "http://localhost:9200/$FIXTURE_NAME/_doc/$id" -H 'Content-Type: application/json' -d "$source" > /dev/null 2>&1
+        curl -u custom_kibana_user:changeme -X POST "http://localhost:9200/$FIXTURE_NAME/_doc/$id" -H 'Content-Type: application/json' -d "$source" > /dev/null 2>&1
       fi
     fi
   done
@@ -72,6 +72,7 @@ process_fixture() {
 }
 
 # Process multiple fixtures
-process_fixture "test/functional/fixtures/es_archiver/huge_fields"
-#process_fixture "test/functional/fixtures/es_archiver/many_fields"
-#process_fixture "test/functional/fixtures/es_archiver/search/downsampled"
+#process_fixture "src/platform/test/functional/fixtures/es_archiver/huge_fields"  # fixture removed upstream
+process_fixture "src/platform/test/functional/fixtures/es_archiver/many_fields"
+
+#process_fixture "src/platform/test/functional/fixtures/es_archiver/search/downsampled"

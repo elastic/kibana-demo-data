@@ -29,11 +29,34 @@ The script installs several demo data sets, each with an associated variable nam
 - **Searchkit Data** (`searchkit`)
 - **Metrics Sample Data** (`metrics`) - Uses [simian-forge](https://github.com/simianhacker/simian-forge) to generate host metrics data
 - **Edge Case Data** with 50,000 dynamically generated unique fields across 10 indices (5,000 unique fields each) and 10 test documents for testing massive field scenarios (`edgecase`)
+- **Edge Case Values** ten small `edge-*` indices for targeted testing (`edgecase_values`, see [below](#edge-case-values))
 - **Discover Demo Data** (`discover`) - A rich, 11-tab Discover session (classic, classic ad hoc data view, field statistics, ES|QL, ES|QL group by, ES|QL view, metrics experience, traces experience, patterns, change point, data sources) plus a dashboard embedding that session, backed by real data, created in four demo spaces, one per solution type: `demo-classic` (classic), `demo-o11y` (oblt), `demo-security` (security), `demo-search` (es). The "Data Sources" tab queries a real public dataset (AWS Open Data Bitcoin blockchain, in S3) registered via ES|QL Data Federation; the "ES|QL View" tab queries a reusable named ES|QL view. Every tab and the dashboard store an explicit time range, so they reliably show data regardless of the viewer's default time range. The spaces are created only if they don't already exist, and the Discover session/dashboard IDs are deterministic (`demo-discover-session-<space-id>` / `demo-discover-dashboard-<space-id>`) so automated tests can reference them directly and re-running the script is idempotent. Requires a recent Kibana checkout (uses `node scripts/synthtrace` for traces data and the Discover session/Dashboard APIs), and an Elasticsearch version with ES|QL Data Federation and view support.
+
+## Edge Case Values
+
+`edgecase_values` complements `edgecase` (many fields) with small indices that each target one awkward scenario. Re-running it deletes and recreates the `edge-*` indices.
+
+```bash
+curl -sSL https://elastic.github.io/kibana-demo-data | sh -s edgecase_values
+```
+
+| Index | What it tests |
+|---|---|
+| `edge-conflict-a`, `edge-conflict-b` | Same field names with different types (keyword/long, ip/keyword, geo_point/keyword, ...). Create a data view on `edge-conflict-*` to see field conflicts. |
+| `edge-special-values` | Unicode and RTL text, emoji, HTML/script strings, KQL/Lucene reserved characters, empty/null/whitespace values, mixed arrays, min/max `long`, `unsigned_long`, 1e300, values beyond `ignore_above`. |
+| `edge-field-names` | Field names with spaces, dashes, dots, colons, quotes, unicode, emoji, a leading underscore or digit, and a 210-character name. |
+| `edge-field-types` | `flattened`, range types, `geo_shape`, `point`, `version`, `wildcard`, `constant_keyword`, `histogram`, `dense_vector`, `nested`, disabled objects, non-indexed fields, aliases, runtime fields (one throws on non-numeric input). |
+| `edge-timestamps` | Epoch 0, 1900, year 2200, tomorrow, +14h/-12h offsets, nanosecond precision, leap day, missing, null and malformed timestamps. |
+| `edge-deep-nesting` | 19 nested object levels, nested-in-nested documents, arrays of arrays. |
+| `edge-high-cardinality` | 20,000 documents with unique user IDs, IPs and sessions. |
+| `edge-large-docs` | About 100 KB of text, a 30 KB keyword value, a 400-line stack trace. |
+| `edge-no-timestamp` | No date field, for data views without a time field. |
+
+A few documents are rejected on purpose (for example a 1900 date in a `date_nanos` field); the script prints the rejection reasons. Suggested data views: `edge-*`, `edge-conflict-*`, and `edge-no-timestamp` (choose "I don't want to use the time filter").
 
 ## Installing Specific Data Sets
 
-If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`,  `metrics`, `edgecase` or `discover`):
+If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`,  `metrics`, `edgecase`, `edgecase_values` or `discover`):
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s <data_set>

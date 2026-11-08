@@ -30,7 +30,7 @@ files="azure_functions.ts cloud_services_icons.ts continuous_rollups.ts degraded
 
 for file in $files;
 do
-  node scripts/synthtrace "$file" > /dev/null 2>&1 || true
+  node scripts/synthtrace "${file%.ts}" > /dev/null 2>&1 || true
 done
 echo "Installing o11y synthtrace sample data finished"
 

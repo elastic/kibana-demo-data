@@ -6,9 +6,20 @@ log() {
   echo "[$(date "+%Y-%m-%dT%H:%M:%S%z")][all] - $1"
 }
 # Function to execute the script
+failed_scripts=""
 execute_script() {
     script_path="https://elastic.github.io/kibana-demo-data/scripts/$1.sh"
-    curl -fsSL "$script_path" | sh
+    # Download first: in a plain `curl | sh` pipeline a download failure is
+    # invisible, because the exit status is that of sh reading empty input.
+    if ! script=$(curl -fsSL "$script_path"); then
+        log "Failed to download $1"
+        failed_scripts="$failed_scripts $1"
+        return
+    fi
+    if ! printf '%s\n' "$script" | sh; then
+        log "$1 failed"
+        failed_scripts="$failed_scripts $1"
+    fi
 }
 
 # Function to search for a string in the array of arguments
@@ -39,6 +50,7 @@ show_help() {
   echo "  metrics   Install metrics sample data using simian-forge"
   echo "  search    Data useful for testing search"
   echo "  edgecase  Install edge case data with 50,000 unique fields across 10 indices and 10 test documents"
+  echo "  edgecase_values  Install small edge-case indices (conflicting types, odd values/field names, exotic types, timestamps, deep nesting, high cardinality)"
   echo "  discover  Install a rich, multi-tab Discover session (classic, ES|QL, ES|QL group by, metrics experience, traces experience) in 4 demo spaces (requires running from a Kibana checkout)"
   echo
   echo "If no scripts are specified, all scripts will be executed."
@@ -52,7 +64,7 @@ if [ "$1" = "--help" ]; then
 fi
 
 # available scripts
-scripts="custom o11y sample searchkit security makelogs edgecase metrics discover"
+scripts="custom o11y sample searchkit security makelogs edgecase edgecase_values metrics discover"
 
 if [ $# -eq 0 ]; then
     # execute all scripts
@@ -71,5 +83,9 @@ else
     done
 fi
 
- log "Finished execution"
+if [ -n "$failed_scripts" ]; then
+    log "Finished execution with failures:$failed_scripts"
+    exit 1
+fi
+log "Finished execution"
 
