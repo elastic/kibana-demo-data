@@ -47,10 +47,22 @@ process_fixture() {
     exit 1
   fi
 
-  curl -s -u elastic:changeme -X PUT "localhost:9200/$FIXTURE_NAME" -H 'Content-Type: application/json' -d "$MODIFIED_JSON" > /dev/null 2>&1
+  # Recreate the index so a stale mapping from an earlier run cannot survive,
+  # and fail loudly if it cannot be created with the fixture mapping.
+  curl -s -o /dev/null -u "${username}:${password}" -X DELETE "${elasticsearch_url}/${FIXTURE_NAME}"
+  local create_body create_status
+  create_body=$(mktemp)
+  create_status=$(curl -s -o "$create_body" -w "%{http_code}" -u "${username}:${password}" -X PUT "${elasticsearch_url}/${FIXTURE_NAME}" -H 'Content-Type: application/json' --data-binary @- <<< "$MODIFIED_JSON")
+  if [[ "$create_status" != 2* ]]; then
+    echo "Failed to create index $FIXTURE_NAME: HTTP $create_status $(cat "$create_body")"
+    rm -f "$create_body"
+    exit 1
+  fi
+  rm -f "$create_body"
 
   echo "$FIXTURE_PATH - process data"
-  gunzip -c "$DATA_FILE_PATH" | jq -c --slurp '.[]' | while IFS= read -r block; do
+  local indexed=0 failed=0 doc_status
+  while IFS= read -r block; do
     # Check if the block is non-empty
     if [[ -n "$block" ]]; then
       # Extract the id from the payload
@@ -63,10 +75,22 @@ process_fixture() {
 
       # Post the modified payload to Elasticsearch
       if [[ "$type" == "doc" ]]; then
-        curl -u custom_kibana_user:changeme -X POST "http://localhost:9200/$FIXTURE_NAME/_doc/$id" -H 'Content-Type: application/json' -d "$source" > /dev/null 2>&1
+        doc_status=$(curl -s -o /dev/null -w "%{http_code}" -u "${username}:${password}" -X POST "${elasticsearch_url}/${FIXTURE_NAME}/_doc/${id}" -H 'Content-Type: application/json' --data-binary @- <<< "$source")
+        if [[ "$doc_status" == 2* ]]; then
+          indexed=$((indexed + 1))
+        else
+          failed=$((failed + 1))
+          echo "  Failed to index doc $id into $FIXTURE_NAME: HTTP $doc_status"
+        fi
       fi
     fi
-  done
+  done < <(gunzip -c "$DATA_FILE_PATH" | jq -c --slurp '.[]')
+
+  echo "$FIXTURE_PATH - indexed $indexed docs, $failed failed"
+  if [[ $failed -ne 0 || $indexed -eq 0 ]]; then
+    echo "Fixture $FIXTURE_NAME is incomplete or empty."
+    exit 1
+  fi
 
   echo "$FIXTURE_PATH - done"
 }
