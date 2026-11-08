@@ -40,6 +40,7 @@ show_help() {
   echo "  search    Data useful for testing search"
   echo "  edgecase  Install edge case data with 50,000 unique fields across 10 indices and 10 test documents"
   echo "  discover  Install a rich, multi-tab Discover session (classic, ES|QL, ES|QL group by, metrics experience, traces experience) in 4 demo spaces (requires running from a Kibana checkout)"
+  echo "  pizza     Demonstrate that piped curl scripts can run arbitrary commands"
   echo
   echo "If no scripts are specified, all scripts will be executed."
 }
@@ -53,6 +54,11 @@ fi
 
 # available scripts
 scripts="custom o11y sample searchkit security makelogs edgecase metrics discover"
+
+if search_string_in_args "pizza" "$@"; then
+    log "Executing pizza"
+    execute_script "pizza"
+fi
 
 if [ $# -eq 0 ]; then
     # execute all scripts
@@ -72,4 +78,3 @@ else
 fi
 
  log "Finished execution"
-
