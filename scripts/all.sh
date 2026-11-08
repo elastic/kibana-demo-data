@@ -22,7 +22,7 @@ execute_script() {
        # Remember "pid:name" so wait_all can report which script failed.
        jobs_started="$jobs_started $!:$1"
     else
-        echo "Error: $script_path is not executable. Skipping."
+        echo "Error: $script_path not found. Skipping."
     fi
 }
 
@@ -36,9 +36,9 @@ wait_all() {
     done
     if [ -n "$failed" ]; then
         echo "Finished with failures:$failed"
-        exit 1
+        return 1
     fi
-    exit 0
+    return 0
 }
 
 if [ $# -eq 0 ]; then
@@ -51,6 +51,7 @@ if [ $# -eq 0 ]; then
    execute_script "makelogs"
    execute_script "discover"
    wait_all
+   exit $?
 fi
 
 # Function to search for a string in the array of arguments
@@ -73,4 +74,4 @@ done
 
 # Wait for all background processes to finish
 wait_all
-
+exit $?

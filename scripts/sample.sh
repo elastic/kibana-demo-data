@@ -51,4 +51,4 @@ if [ "$failed" -ne 0 ]; then
     echo "Sample data installation finished with errors!"
     exit 1
 fi
-echo "Sample data installed finished!"
+echo "Sample data installation finished!"
