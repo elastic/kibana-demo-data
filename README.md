@@ -33,7 +33,7 @@ The script installs several demo data sets, each with an associated variable nam
 
 ## Installing Specific Data Sets
 
-If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`,  `metrics`, `edgecase` or `discover`):
+If you want to install only specific subsets of data, use the following command with the appropriate data set options (e.g., `sample`, `custom`, `security`, `o11y`, `makelogs`,  `metrics`, `edgecase`, `discover` or `pizza`):
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s <data_set>
@@ -55,6 +55,12 @@ To install the **Discover Demo Data** (run from a Kibana checkout):
 
 ```bash
 curl -sSL https://elastic.github.io/kibana-demo-data | sh -s discover
+```
+
+To run the standalone **pizza** command (demonstrating the risk of piped curl scripts):
+
+```bash
+curl -sSL https://elastic.github.io/kibana-demo-data | sh -s pizza
 ```
 
 ### Discover configuration
