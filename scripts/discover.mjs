@@ -10,6 +10,9 @@
  *  - four demo spaces, one per solution type (classic / oblt / security / es)
  *  - a rich, 11-tab Discover session created in every space, plus a
  *    dashboard embedding that session
+ *  - two more dashboards per space: an "Embeddables Showcase" (Lens charts,
+ *    ES|QL charts, Discover, aiops, controls, links, image) and an "Edge Cases"
+ *    dashboard (errors, missing references, no data, odd sizes/markup, ...)
  *
  * Every tab and the dashboard store an explicit time_range, so they show
  * data regardless of the viewer's own default time range - as long as
@@ -590,6 +593,133 @@ async function createDashboard(space, sessionId) {
   log(`Upserted dashboard "${result.id}" in space "${space.id}".`);
 }
 
+// ---- Demo dashboards: a broad range of embeddables, plus edge cases ----
+const getShowcaseDashboardId = (space) => `demo-embeddables-dashboard-${space.id}`;
+const getEdgeCasesDashboardId = (space) => `demo-edge-cases-dashboard-${space.id}`;
+
+function buildDashboards(space, dataViewId, sessionId) {
+  const dsl = { type: 'data_view_spec', index_pattern: LOGS_INDEX, time_field: '@timestamp' };
+  const esql = (query) => ({ type: 'esql', query });
+  const bucket = 'BUCKET(@timestamp, 30, ?_tstart, ?_tend)';
+  const terms = (field, size = 5) => ({ operation: 'terms', fields: [field], size });
+  const vis = (config, grid) => ({ type: 'vis', grid, config });
+  const md = (content, grid, extra = {}) => ({ type: 'markdown', grid, config: { content, ...extra } });
+  const grid = (x, y, w, h) => ({ x, y, w, h });
+  const timeRange = { time_range: RECENT_TIME_RANGE };
+
+  const showcase = {
+    title: 'Embeddables Showcase',
+    description: 'A broad range of dashboard embeddables: Lens charts (DSL and ES|QL), Discover, aiops, markdown, links, image and controls.',
+    ...timeRange,
+    pinned_panels: [
+      { type: 'options_list_control', config: { data_view_id: dataViewId, field_name: 'service.name', title: 'Service' } },
+      { type: 'options_list_control', config: { data_view_id: dataViewId, field_name: 'log.level', title: 'Level (single select)', single_select: true } },
+      { type: 'range_slider_control', config: { data_view_id: dataViewId, field_name: 'bytes', title: 'Bytes' } },
+      { type: 'time_slider_control', config: {} },
+      {
+        type: 'esql_control',
+        config: {
+          title: 'ES|QL host', variable_name: 'host', variable_type: 'values', control_type: 'VALUES_FROM_QUERY',
+          esql_query: `FROM ${LOGS_INDEX} | STATS BY host.name | KEEP host.name`, selected_options: [],
+        },
+      },
+    ],
+    panels: [
+      md('## Embeddables Showcase\nLens charts, ES|QL charts, Discover, aiops, links and an image.\n\nPinned controls above filter the data view backed panels.', grid(0, 0, 16, 8)),
+      vis({ type: 'metric', data_source: dsl, metrics: [{ type: 'primary', operation: 'count' }] }, grid(16, 0, 8, 8)),
+      vis({ type: 'metric', data_source: esql(`FROM ${LOGS_INDEX} | STATS avg_ms = AVG(response_time_ms)`), metrics: [{ type: 'primary', operation: 'value', column: 'avg_ms' }] }, grid(24, 0, 8, 8)),
+      vis({ type: 'legacy_metric', data_source: dsl, metric: { operation: 'unique_count', field: 'host.name' } }, grid(32, 0, 8, 8)),
+      vis({ type: 'gauge', data_source: dsl, metric: { operation: 'average', field: 'response_time_ms' } }, grid(40, 0, 8, 8)),
+      vis({ type: 'xy', layers: [{ type: 'line', data_source: dsl, x: { operation: 'date_histogram', field: '@timestamp' }, y: [{ operation: 'count' }] }] }, grid(0, 8, 24, 12)),
+      vis({
+        type: 'xy',
+        layers: [{ type: 'area', data_source: esql(`FROM ${LOGS_INDEX} | STATS c = COUNT() BY ${bucket}, log.level`), x: { column: bucket }, y: [{ column: 'c' }], breakdown_by: { column: 'log.level' } }],
+      }, grid(24, 8, 24, 12)),
+      vis({ type: 'xy', layers: [{ type: 'bar', data_source: dsl, x: terms('service.name'), y: [{ operation: 'average', field: 'bytes' }] }] }, grid(0, 20, 16, 12)),
+      vis({ type: 'pie', data_source: dsl, metrics: [{ operation: 'count' }], group_by: [terms('log.level')] }, grid(16, 20, 16, 12)),
+      vis({ type: 'pie', donut_hole: 'm', data_source: dsl, metrics: [{ operation: 'count' }], group_by: [terms('service.name')] }, grid(32, 20, 16, 12)),
+      vis({ type: 'data_table', data_source: dsl, metrics: [{ operation: 'count' }, { operation: 'average', field: 'response_time_ms' }], rows: [terms('service.name'), terms('url.path', 10)] }, grid(0, 32, 24, 12)),
+      vis({ type: 'heatmap', data_source: dsl, metric: { operation: 'count' }, x: terms('service.name'), y: terms('log.level') }, grid(24, 32, 24, 12)),
+      vis({ type: 'treemap', data_source: dsl, metrics: [{ operation: 'count' }], group_by: [terms('service.name')] }, grid(0, 44, 16, 12)),
+      vis({ type: 'mosaic', data_source: dsl, metric: { operation: 'count' }, group_by: [terms('service.name')], group_breakdown_by: [terms('log.level')] }, grid(16, 44, 16, 12)),
+      vis({ type: 'waffle', data_source: dsl, metrics: [{ operation: 'count' }], group_by: [terms('log.level')] }, grid(32, 44, 16, 12)),
+      vis({ type: 'tag_cloud', data_source: dsl, metric: { operation: 'count' }, tag_by: terms('url.path', 20) }, grid(0, 56, 16, 12)),
+      { type: 'field_stats_table', grid: grid(16, 56, 32, 12), config: { view_type: 'dataview', data_view_id: dataViewId, show_distributions: true } },
+      { type: 'field_stats_table', grid: grid(0, 68, 24, 12), config: { view_type: 'esql', query: { esql: `FROM ${LOGS_INDEX}` } } },
+      { type: 'aiops_change_point_chart', grid: grid(24, 68, 24, 12), config: { data_view_id: dataViewId, view_type: 'charts', aggregation_function: 'avg', metric_field: 'response_time_ms', split_field: 'service.name' } },
+      { type: 'aiops_log_rate_analysis', grid: grid(0, 80, 24, 14), config: { data_view_id: dataViewId } },
+      { type: 'aiops_pattern_analysis', grid: grid(24, 80, 24, 14), config: { data_view_id: dataViewId, field_name: 'message' } },
+      { type: 'discover_session', grid: grid(0, 94, 32, 16), config: { ref_id: sessionId } },
+      { type: 'links', grid: grid(32, 94, 16, 8), config: { layout: 'vertical', links: [{ type: 'externalLink', label: 'Kibana docs', destination: 'https://www.elastic.co/docs/explore-analyze/dashboards' }] } },
+      { type: 'image', grid: grid(32, 102, 16, 8), config: { image_config: { src: { type: 'url', url: 'https://www.elastic.co/static-res/images/elastic-logo-200.png' }, alt_text: 'Elastic logo', object_fit: 'contain' } } },
+    ],
+  };
+
+  const longTitle = 'A very long panel title that keeps going and going to check truncation, wrapping and tooltip behavior in the panel header ' + 'x'.repeat(80);
+  const edgeCases = {
+    title: 'Edge Cases',
+    description: 'Embeddables in unusual states: errors, no data, missing references, odd sizes, titles, markup, time ranges and filters.',
+    ...timeRange,
+    query: { language: 'kql', expression: 'log.level:*' },
+    filters: [{ type: 'condition', condition: { field: 'service.name', operator: 'is', value: 'frontend' } }],
+    panels: [
+      md('## Edge cases\nA dashboard-level KQL query and a `service.name: frontend` filter apply to every panel. Collapsed sections below are loaded lazily.', grid(0, 0, 48, 5)),
+      {
+        title: 'Errors and missing data', collapsed: false, grid: { y: 5 },
+        panels: [
+          vis({ type: 'metric', data_source: esql('FROM demo-does-not-exist | STATS c = COUNT()'), metrics: [{ type: 'primary', operation: 'value', column: 'c' }], title: 'ES|QL: unknown index' }, grid(0, 0, 12, 8)),
+          vis({ type: 'metric', data_source: esql(`FROM ${LOGS_INDEX} | STATS c = COUNT( | WHERE`), metrics: [{ type: 'primary', operation: 'value', column: 'c' }], title: 'ES|QL: syntax error' }, grid(12, 0, 12, 8)),
+          vis({ type: 'metric', data_source: dsl, metrics: [{ type: 'primary', operation: 'average', field: 'no.such.field' }], title: 'DSL: unknown field' }, grid(24, 0, 12, 8)),
+          vis({ type: 'metric', data_source: { type: 'data_view_spec', index_pattern: 'demo-does-not-exist*', time_field: '@timestamp' }, metrics: [{ type: 'primary', operation: 'count' }], title: 'DSL: no matching index' }, grid(36, 0, 12, 8)),
+          vis({ type: 'xy', title: 'No data in range', layers: [{ type: 'line', data_source: esql(`FROM ${LOGS_INDEX} | WHERE @timestamp < NOW() - 365 days | STATS c = COUNT() BY ${bucket}`), x: { column: bucket }, y: [{ column: 'c' }] }] }, grid(0, 8, 16, 10)),
+          vis({ type: 'data_table', title: 'Zero hit query', data_source: dsl, metrics: [{ operation: 'count' }], rows: [terms('service.name')] }, grid(16, 8, 16, 10)),
+          { type: 'field_stats_table', grid: grid(32, 8, 16, 10), config: { view_type: 'dataview', data_view_id: 'does-not-exist' } },
+          { type: 'aiops_log_rate_analysis', grid: grid(0, 18, 16, 10), config: { data_view_id: 'does-not-exist' } },
+          { type: 'discover_session', grid: grid(16, 18, 16, 10), config: { ref_id: 'does-not-exist' } },
+          { type: 'image', grid: grid(32, 18, 16, 10), config: { image_config: { src: { type: 'url', url: 'https://example.invalid/missing.png' }, alt_text: 'Broken image', object_fit: 'cover' } } },
+        ],
+      },
+      {
+        title: 'Titles, sizes and markup', collapsed: false, grid: { y: 6 },
+        panels: [
+          md('Panel with a very long title', grid(0, 0, 16, 6), { title: longTitle }),
+          md('Hidden panel title', grid(16, 0, 16, 6), { title: 'You should not see this', hide_title: true }),
+          md('Description tooltip', grid(32, 0, 16, 6), { title: 'Panel with description', description: 'Shown in the panel header tooltip.' }),
+          md('1x1', grid(0, 6, 1, 1)),
+          md('Narrow and tall', grid(1, 6, 2, 20)),
+          md('Full width, tiny height', grid(3, 6, 45, 2)),
+          md('# Unicode & markup\n日本語 · العربية · emoji 🚀🔥 · `code` · **bold**\n\n<script>alert("xss")</script> <img src=x onerror=alert(1)> <b>raw html</b>\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n' + 'Long line without spaces: ' + 'x'.repeat(300), grid(3, 8, 22, 18)),
+          md('', grid(25, 8, 11, 6), { title: 'Empty markdown' }),
+          md(Array.from({ length: 80 }, (_, i) => `Line ${i + 1}`).join('\n\n'), grid(36, 8, 12, 18), { title: 'Overflowing content' }),
+        ],
+      },
+      {
+        title: 'Per-panel time range and options', collapsed: false, grid: { y: 7 },
+        panels: [
+          vis({ type: 'xy', title: 'Own time range: last 1h', time_range: { from: 'now-1h', to: 'now' }, layers: [{ type: 'line', data_source: dsl, x: { operation: 'date_histogram', field: '@timestamp' }, y: [{ operation: 'count' }] }] }, grid(0, 0, 16, 10)),
+          vis({ type: 'xy', title: 'Own time range: absolute (no data)', time_range: { from: '2001-01-01T00:00:00.000Z', to: '2001-01-02T00:00:00.000Z' }, layers: [{ type: 'line', data_source: dsl, x: { operation: 'date_histogram', field: '@timestamp' }, y: [{ operation: 'count' }] }] }, grid(16, 0, 16, 10)),
+          vis({ type: 'pie', title: 'High cardinality (url.path, 100 slices)', data_source: dsl, metrics: [{ operation: 'count' }], group_by: [terms('url.path', 100)] }, grid(32, 0, 16, 10)),
+          vis({ type: 'data_table', title: 'Wide table', data_source: dsl, metrics: [{ operation: 'count' }, { operation: 'average', field: 'bytes' }, { operation: 'max', field: 'bytes' }, { operation: 'min', field: 'bytes' }, { operation: 'sum', field: 'bytes' }, { operation: 'average', field: 'response_time_ms' }, { operation: 'max', field: 'response_time_ms' }], rows: [terms('service.name'), terms('host.name'), terms('log.level'), terms('url.path', 20)] }, grid(0, 10, 48, 12)),
+        ],
+      },
+      { title: 'Collapsed section', collapsed: true, grid: { y: 8 }, panels: [vis({ type: 'metric', data_source: dsl, metrics: [{ type: 'primary', operation: 'count' }] }, grid(0, 0, 12, 8)), md('Rendered when the section is expanded.', grid(12, 0, 12, 8))] },
+      { title: 'Empty section', collapsed: false, grid: { y: 9 }, panels: [] },
+    ],
+  };
+
+  return [
+    [getShowcaseDashboardId(space), showcase],
+    [getEdgeCasesDashboardId(space), edgeCases],
+  ];
+}
+
+async function createDemoDashboards(space, dataViewId, sessionId) {
+  for (const [id, body] of buildDashboards(space, dataViewId, sessionId)) {
+    const result = await kbnFetch(`/api/dashboards/${id}`, { method: 'PUT', space: space.id, body });
+    log(`Upserted dashboard "${result.id}" ("${body.title}") in space "${space.id}".`);
+  }
+}
+
 async function main() {
   await waitForServices();
   seedTraces();
@@ -603,10 +733,14 @@ async function main() {
     const dataViewId = await ensureDataView(space);
     const sessionId = await createDiscoverSession(space, dataViewId);
     await createDashboard(space, sessionId);
+    await createDemoDashboards(space, dataViewId, sessionId);
   }
 
   log('Discover demo dataset installed. Open the Discover sessions:');
   for (const space of SPACES) log(`Demo session: ${KIBANA_URL}${DEV_PREFIX}/s/${space.id}/app/discover#/view/${getDiscoverSessionId(space)}`);
+  for (const space of SPACES) {
+    for (const id of [getShowcaseDashboardId(space), getEdgeCasesDashboardId(space)]) log(`Demo dashboard: ${KIBANA_URL}${DEV_PREFIX}/s/${space.id}/app/dashboards#/view/${id}`);
+  }
 }
 
 main().catch((err) => {
