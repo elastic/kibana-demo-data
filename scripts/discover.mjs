@@ -605,8 +605,8 @@ async function main() {
     await createDashboard(space, sessionId);
   }
 
-  log('Discover demo dataset installed. Open Discover in each space to explore:');
-  for (const space of SPACES) log(`${KIBANA_URL}${DEV_PREFIX}/s/${space.id}/app/discover`);
+  log('Discover demo dataset installed. Open the Discover sessions:');
+  for (const space of SPACES) log(`Demo session: ${KIBANA_URL}${DEV_PREFIX}/s/${space.id}/app/discover#/view/${getDiscoverSessionId(space)}`);
 }
 
 main().catch((err) => {
